@@ -7,9 +7,11 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** 'md' = max-w-lg (default), 'lg' = max-w-2xl */
+  size?: 'md' | 'lg';
 }
 
-export function Modal({ open, onClose, title, children }: ModalProps) {
+export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const handle = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -24,7 +26,9 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-lg rounded-lg border border-zinc-200 bg-white p-6 shadow dark:border-zinc-700 dark:bg-zinc-800">
+      <div
+        className={`w-full rounded-lg border border-zinc-200 bg-white p-6 shadow dark:border-zinc-700 dark:bg-zinc-800 ${size === 'lg' ? 'max-w-2xl' : 'max-w-lg'}`}
+      >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
             {title}

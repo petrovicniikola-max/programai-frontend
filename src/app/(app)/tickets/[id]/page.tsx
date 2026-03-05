@@ -27,6 +27,12 @@ interface TicketDetail {
   tags: { id: string; name: string }[];
   commentsCount: number;
   openTasksCount: number;
+  reportedBy?: string | null;
+  putIAngazovanje?: string[] | null;
+  tokPrijave?: string | null;
+  zakljucak?: string | null;
+  potpisOvlascenogLica?: string | null;
+  ticketDate?: string | null;
 }
 
 interface Comment {
@@ -220,19 +226,118 @@ export default function TicketDetailPage({
 
   const isAssignedToMe = me?.id && ticket.assignee?.id === me.id;
   const canEdit = true;
+  const hasManualFormData =
+    ticket.reportedBy ||
+    (ticket.putIAngazovanje && ticket.putIAngazovanje.length > 0) ||
+    ticket.tokPrijave ||
+    ticket.zakljucak ||
+    ticket.potpisOvlascenogLica ||
+    ticket.ticketDate;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const createdByLabel =
+    ticket.createdBy?.displayName || ticket.createdBy?.email || (ticket.createdByUserId ? '(korisnik)' : null);
 
   return (
     <div className="space-y-6">
-      <Link href="/tickets" className="text-sm text-emerald-600 hover:underline dark:text-emerald-400">
-        ← Back to Tickets
-      </Link>
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+        <Link href="/tickets" className="text-sm text-emerald-600 hover:underline dark:text-emerald-400">
+          ← Back to Tickets
+        </Link>
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+        >
+          Štampaj A4
+        </button>
+      </div>
+
+      {/* Štampa samo u formatu forme – ista polja i redosled kao "Kreiraj ticket" */}
+      <div
+        id="ticket-print-area"
+        className="hidden print:block max-w-[210mm] mx-auto py-8 px-10 text-black"
+        style={{ fontSize: '11pt' }}
+      >
+        <h1 className="text-lg font-semibold mb-6 border-b border-black pb-2">
+          {ticket.key} – {ticket.title}
+        </h1>
+        <div className="space-y-4">
+          <div>
+            <div className="font-medium mb-1">1. Ko je prijavio?</div>
+            <div className="min-h-[1.5em] border-b border-zinc-400">
+              {ticket.reportedBy || '—'}
+            </div>
+          </div>
+          <div>
+            <div className="font-medium mb-1">2. Detaljan opis prijave</div>
+            <div className="min-h-[4em] border border-zinc-400 p-2 whitespace-pre-wrap">
+              {ticket.description || '—'}
+            </div>
+          </div>
+          <div>
+            <div className="font-medium mb-1">3. Put i angažovanje</div>
+            <div className="text-xs text-zinc-600 mb-1">
+              Svaki red posebno (npr. Na teren 2 tehničara, Službenim vozilom, Vreme: 4h, Kilometraža 180km).
+            </div>
+            {ticket.putIAngazovanje && ticket.putIAngazovanje.length > 0 ? (
+              <div className="border border-zinc-400 p-2 space-y-1">
+                {ticket.putIAngazovanje.map((line, i) => (
+                  <div key={i} className="border-b border-zinc-200 last:border-0 pb-1 last:pb-0">
+                    • {line}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="min-h-[2em] border border-zinc-400 p-2">—</div>
+            )}
+          </div>
+          <div>
+            <div className="font-medium mb-1">4. Tok prijave</div>
+            <div className="min-h-[3em] border border-zinc-400 p-2 whitespace-pre-wrap">
+              {ticket.tokPrijave || '—'}
+            </div>
+          </div>
+          <div>
+            <div className="font-medium mb-1">5. Zaključak</div>
+            <div className="min-h-[3em] border border-zinc-400 p-2 whitespace-pre-wrap">
+              {ticket.zakljucak || '—'}
+            </div>
+          </div>
+          <div>
+            <div className="font-medium mb-1">Potpis ovlašćenog lica</div>
+            <div className="min-h-[2em] border-b-2 border-black">
+              {ticket.potpisOvlascenogLica || ''}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            <div>
+              <div className="font-medium mb-1">Datum</div>
+              <div className="border-b border-zinc-400">
+                {ticket.ticketDate
+                  ? new Date(ticket.ticketDate).toLocaleString()
+                  : '—'}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium mb-1">Ticket napravio</div>
+              <div className="border-b border-zinc-400">{createdByLabel ?? '—'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Prikaz na ekranu – cela stranica tiketa */}
+      <div className="print:hidden flex flex-wrap items-start justify-between gap-4">
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
           {ticket.key} – {ticket.title}
         </h1>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="print:hidden grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
             <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Description</h2>
@@ -269,7 +374,7 @@ export default function TicketDetailPage({
             <div className="space-y-1">
               {canEdit && (
                 <>
-                  <div className="flex items-center gap-2 py-2">
+                  <div className="flex items-center gap-2 py-2 print:hidden">
                     <label className="w-28 text-sm text-zinc-500">Status</label>
                     <select
                       value={ticket.status}
@@ -282,8 +387,12 @@ export default function TicketDetailPage({
                       <option value="DONE">DONE</option>
                     </select>
                   </div>
+                  <div className="hidden print:flex print:gap-3 print:py-2 print:border-b print:border-zinc-300">
+                    <span className="w-28 shrink-0 text-sm">Status</span>
+                    <span className="text-sm">{ticket.status}</span>
+                  </div>
                   {!isAssignedToMe && (
-                    <div className="py-2">
+                    <div className="py-2 print:hidden">
                       <button
                         type="button"
                         onClick={() => assignToMe.mutate()}
@@ -312,7 +421,7 @@ export default function TicketDetailPage({
               <DetailRow label="Call time" value={ticket.callOccurredAt ? new Date(ticket.callOccurredAt).toLocaleString() : null} />
               {canEdit && (
                 <>
-                  <div className="flex items-center gap-2 py-2">
+                  <div className="flex items-center gap-2 py-2 print:hidden">
                     <button
                       type="button"
                       onClick={() => setCallTimeNow.mutate()}
@@ -322,7 +431,7 @@ export default function TicketDetailPage({
                       Set NOW
                     </button>
                   </div>
-                  <div className="flex items-center gap-2 py-2">
+                  <div className="flex items-center gap-2 py-2 print:hidden">
                     <label className="w-28 text-sm text-zinc-500">Duration (min)</label>
                     <input
                       type="number"
@@ -335,7 +444,7 @@ export default function TicketDetailPage({
                       className="w-20 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
                     />
                   </div>
-                  <div className="flex items-center gap-2 py-2">
+                  <div className="flex items-center gap-2 py-2 print:hidden">
                     <label className="w-28 text-sm text-zinc-500">Call at</label>
                     <input
                       type="datetime-local"
@@ -358,17 +467,54 @@ export default function TicketDetailPage({
 
           <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
             <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Contact / Company</h2>
-            <DetailRow label="Contact" value={ticket.contactName ?? ticket.contact?.name} />
-            <DetailRow label="Phone" value={ticket.phoneRaw} />
-            <DetailRow label="Company" value={ticket.company?.name} />
-            <DetailRow label="PIB" value={ticket.company?.pib} />
-            <DetailRow label="MB" value={ticket.company?.mb} />
+            {(ticket.reportedBy || ticket.contactName || ticket.contact || ticket.company) && (
+              <div className="space-y-1">
+                {ticket.reportedBy && (
+                  <DetailRow label="Ko je prijavio" value={ticket.reportedBy} />
+                )}
+                <DetailRow label="Contact" value={ticket.contactName ?? ticket.contact?.name} />
+                <DetailRow label="Phone" value={ticket.phoneRaw} />
+                <DetailRow label="Company" value={ticket.company?.name} />
+                <DetailRow label="PIB" value={ticket.company?.pib} />
+                <DetailRow label="MB" value={ticket.company?.mb} />
+              </div>
+            )}
+            {!ticket.reportedBy && !ticket.contactName && !ticket.contact && !ticket.company && (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">—</p>
+            )}
           </div>
+
+          {hasManualFormData && (
+            <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+              <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Detalji prijave</h2>
+              <div className="space-y-1">
+                {ticket.putIAngazovanje && ticket.putIAngazovanje.length > 0 && (
+                  <div className="flex gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
+                    <span className="w-44 shrink-0 text-sm text-zinc-500 dark:text-zinc-400">
+                      Put i angažovanje
+                    </span>
+                    <ul className="list-disc pl-4 text-sm text-zinc-900 dark:text-zinc-100">
+                      {ticket.putIAngazovanje.map((line, i) => (
+                        <li key={i}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <DetailRow label="Tok prijave" value={ticket.tokPrijave} />
+                <DetailRow label="Zaključak" value={ticket.zakljucak} />
+                <DetailRow label="Potpis ovlašćenog lica" value={ticket.potpisOvlascenogLica} />
+                <DetailRow
+                  label="Datum"
+                  value={ticket.ticketDate ? new Date(ticket.ticketDate).toLocaleString() : null}
+                />
+              </div>
+            </div>
+          )}
 
           {canEdit && (
             <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
               <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Tags</h2>
-              <div className="flex flex-wrap gap-2 mb-2">
+              <div className="flex flex-wrap gap-2 mb-2 print:flex">
                 {ticket.tags.map((t) => (
                   <span
                     key={t.id}
@@ -379,7 +525,7 @@ export default function TicketDetailPage({
                       type="button"
                       onClick={() => unassignTags.mutate([t.id])}
                       disabled={unassignTags.isPending}
-                      className="ml-1 text-zinc-500 hover:text-red-600"
+                      className="ml-1 text-zinc-500 hover:text-red-600 print:hidden"
                     >
                       ×
                     </button>
@@ -387,7 +533,7 @@ export default function TicketDetailPage({
                 ))}
               </div>
               <select
-                className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+                className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100 print:hidden"
                 value=""
                 onChange={(e) => {
                   const tagId = e.target.value;
@@ -488,7 +634,7 @@ function CommentsSection({
           </li>
         ))}
       </ul>
-      <div className="flex gap-2">
+      <div className="flex gap-2 print:hidden">
         <input
           type="text"
           value={body}
@@ -545,7 +691,7 @@ function TasksSection({
           </li>
         ))}
       </ul>
-      <div className="flex gap-2">
+      <div className="flex gap-2 print:hidden">
         <input
           type="text"
           value={title}

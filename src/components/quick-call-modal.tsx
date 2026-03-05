@@ -1,24 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-function formatCallTime(iso: string): string {
+/** Format ISO string to datetime-local value (YYYY-MM-DDTHH:mm) in local timezone */
+function toDatetimeLocalValue(iso: string): string {
   const d = new Date(iso);
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
-  const year = d.getFullYear();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   const h = String(d.getHours()).padStart(2, '0');
   const min = String(d.getMinutes()).padStart(2, '0');
-  const sec = String(d.getSeconds()).padStart(2, '0');
-  return `${day}.${month}.${year}. ${h}:${min}:${sec}`;
+  return `${y}-${m}-${day}T${h}:${min}`;
 }
 
 interface QuickCallModalProps {
   open: boolean;
   onClose: () => void;
 }
+
+const LOOKUP_DEBOUNCE_MS = 400;
 
 export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
   const queryClient = useQueryClient();
@@ -27,12 +29,57 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
   const [companyName, setCompanyName] = useState('');
   const [companyId, setCompanyId] = useState('');
   const [companyMb, setCompanyMb] = useState('');
+  const [companyPib, setCompanyPib] = useState('');
   const [summary, setSummary] = useState('');
   const [callOccurredAt, setCallOccurredAt] = useState('');
   const [callDurationMinutes, setCallDurationMinutes] = useState('');
   const [conversationKind, setConversationKind] = useState<'SUPPORT' | 'SALES' | ''>('');
+  const [useCentrala, setUseCentrala] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const lookupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLookupRef = useRef<string>('');
+
+  const runLookup = useCallback(async () => {
+    const q = [phone, contactName, companyName, companyId, companyPib, companyMb].filter(Boolean).join('|');
+    if (!q || q === lastLookupRef.current) return;
+    lastLookupRef.current = q;
+    try {
+      const params = new URLSearchParams();
+      if (phone.trim()) params.set('phone', phone.trim());
+      if (contactName.trim()) params.set('contactName', contactName.trim());
+      if (companyName.trim()) params.set('companyName', companyName.trim());
+      if (companyId.trim()) params.set('companyId', companyId.trim());
+      if (companyPib.trim()) params.set('pib', companyPib.trim());
+      if (companyMb.trim()) params.set('mb', companyMb.trim());
+      if (params.toString() === '') return;
+      const res = await api.get<{
+        contact?: { id: string; name: string; companyId: string | null; phones: { phoneRaw: string }[] };
+        company?: { id: string; name: string; pib: string | null; mb: string | null };
+      }>(`/tickets/quick-call/client-lookup?${params.toString()}`);
+      const { contact, company } = res.data;
+      if (contact) {
+        setContactName((prev) => prev || contact.name);
+        if (contact.phones?.[0]?.phoneRaw) setPhone((prev) => prev || contact.phones[0].phoneRaw);
+      }
+      if (company) {
+        setCompanyName((prev) => prev || company.name);
+        if (company.pib) setCompanyPib((prev) => prev || (company.pib ?? ''));
+        if (company.mb) setCompanyMb((prev) => prev || (company.mb ?? ''));
+        if (company.id) setCompanyId((prev) => prev || company.id);
+      }
+    } catch {
+      lastLookupRef.current = '';
+    }
+  }, [phone, contactName, companyName, companyId, companyPib, companyMb]);
+
+  const scheduleLookup = useCallback(() => {
+    if (lookupTimeoutRef.current) clearTimeout(lookupTimeoutRef.current);
+    lookupTimeoutRef.current = setTimeout(() => {
+      lookupTimeoutRef.current = null;
+      runLookup();
+    }, LOOKUP_DEBOUNCE_MS);
+  }, [runLookup]);
 
   function setCallTimeNow() {
     setCallOccurredAt(new Date().toISOString());
@@ -44,10 +91,11 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
     setLoading(true);
     try {
       await api.post('/tickets/quick-call', {
-        phone: phone.trim(),
+        ...(useCentrala ? {} : { phone: phone.trim() }),
         ...(contactName.trim() && { contactName: contactName.trim() }),
         ...(companyName.trim() && { companyName: companyName.trim() }),
-        ...(companyId.trim() && { pib: companyId.trim() }),
+        ...(companyId.trim() && { companyId: companyId.trim() }),
+        ...(companyPib.trim() && { pib: companyPib.trim() }),
         ...(companyMb.trim() && { mb: companyMb.trim() }),
         ...(summary.trim() && { summary: summary.trim() }),
         ...(callOccurredAt && { callOccurredAt }),
@@ -61,7 +109,10 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
       setContactName('');
       setCompanyName('');
       setCompanyId('');
+      setCompanyPib('');
       setCompanyMb('');
+      setUseCentrala(false);
+      lastLookupRef.current = '';
       setSummary('');
       setCallOccurredAt('');
       setCallDurationMinutes('');
@@ -87,18 +138,36 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
           Quick Call
         </h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div>
-            <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">
-              Phone <span className="text-red-500">*</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={useCentrala}
+                onChange={(e) => setUseCentrala(e.target.checked)}
+                className="rounded border-zinc-300"
+              />
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">Centrala</span>
             </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              className="w-full rounded border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
-            />
           </div>
+          {!useCentrala && (
+            <div>
+              <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">
+                Phone <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  scheduleLookup();
+                }}
+                onBlur={runLookup}
+                required
+                placeholder="uneti broj telefona"
+                className="w-full rounded border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+              />
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">
               Contact name
@@ -106,30 +175,44 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
             <input
               type="text"
               value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
+              onChange={(e) => {
+                setContactName(e.target.value);
+                scheduleLookup();
+              }}
+              onBlur={runLookup}
+              placeholder="Ime klijenta"
               className="w-full rounded border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
             />
           </div>
           <div>
             <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">
-              Company name (optional)
+              Company name
             </label>
             <input
               type="text"
               value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="Creates company if it doesn’t exist"
+              onChange={(e) => {
+                setCompanyName(e.target.value);
+                scheduleLookup();
+              }}
+              onBlur={runLookup}
+              placeholder="Ime kompanije"
               className="w-full rounded border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
             />
           </div>
+          {/* Company ID se automatski postavlja u pozadini pri lookup-u ili kreiranju kompanije */}
           <div>
             <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">
-              Company ID (optional)
+              PIB (optional)
             </label>
             <input
               type="text"
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
+              value={companyPib}
+              onChange={(e) => {
+                setCompanyPib(e.target.value);
+                scheduleLookup();
+              }}
+              onBlur={runLookup}
               placeholder="PIB kompanije"
               className="w-full rounded border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
             />
@@ -141,25 +224,31 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
             <input
               type="text"
               value={companyMb}
-              onChange={(e) => setCompanyMb(e.target.value)}
+              onChange={(e) => {
+                setCompanyMb(e.target.value);
+                scheduleLookup();
+              }}
+              onBlur={runLookup}
               placeholder="Matični broj kompanije"
               className="w-full rounded border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
             />
           </div>
           <div>
             <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">
-              Summary
+              Summary <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
+              placeholder="Uneti opis poziva"
+              required
               className="w-full rounded border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
             />
           </div>
           <div>
             <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">
-              Vrsta razgovora
+              Call type
             </label>
             <select
               value={conversationKind}
@@ -175,13 +264,15 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
             <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">
               Call start time
             </label>
-            <div className="flex gap-2">
+            <p className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Uneti datum i vreme poziva
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
               <input
-                type="text"
-                readOnly
-                value={callOccurredAt ? formatCallTime(callOccurredAt) : ''}
-                placeholder="Optional"
-                className="w-48 rounded border border-zinc-300 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+                type="datetime-local"
+                value={callOccurredAt ? toDatetimeLocalValue(callOccurredAt) : ''}
+                onChange={(e) => setCallOccurredAt(e.target.value ? new Date(e.target.value).toISOString() : '')}
+                className="rounded border border-zinc-300 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
               />
               <button
                 type="button"
@@ -194,13 +285,14 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
           </div>
           <div>
             <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">
-              Call duration (minutes)
+              Call duration
             </label>
             <input
               type="number"
               min={0}
               value={callDurationMinutes}
               onChange={(e) => setCallDurationMinutes(e.target.value)}
+              placeholder="minutes"
               className="w-full rounded border border-zinc-300 px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
             />
           </div>

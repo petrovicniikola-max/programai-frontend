@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Omogući ručno prebacivanje dark/light preko class na html */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -23,4 +26,35 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* A4 print: hide app shell, show only main content */
+@media print {
+  aside,
+  header {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+  #ticket-print-area {
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 12mm;
+    font-size: 11pt;
+    color: #000;
+    background: #fff;
+  }
+  #ticket-print-area * {
+    color: #000 !important;
+    border-color: #333 !important;
+  }
+  #ticket-print-area .rounded-lg {
+    border: 1px solid #333;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    break-inside: avoid;
+  }
 }

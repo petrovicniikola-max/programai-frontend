@@ -14,8 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ProgramAI",
-  description: "ProgramAI CRM – Jira-like UI",
+  title: "CRM ESTUAR",
+  description: "CRM ESTUAR – CRM aplikacija",
+  openGraph: {
+    title: "CRM ESTUAR",
+    description: "CRM ESTUAR – CRM aplikacija",
+    siteName: "CRM ESTUAR",
+  },
 };
 
 export default function RootLayout({
@@ -24,7 +29,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('crm-theme');var d=document.documentElement;if(t==='dark')d.classList.add('dark');else if(t==='light')d.classList.remove('dark');else if(window.matchMedia('(prefers-color-scheme: dark)').matches)d.classList.add('dark');else d.classList.remove('dark');})();`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

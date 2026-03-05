@@ -66,7 +66,7 @@ export default function LoginPage() {
     }
   }
 
-  const brandName = branding?.brandName?.trim() || 'ProgramAI';
+  const brandName = branding?.brandName?.trim() || 'CRM ESTUAR';
   const brandColour = branding?.primaryColour ?? undefined;
 
   return (

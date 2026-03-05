@@ -4,9 +4,20 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { getLicences, type Licence } from '@/lib/api';
+import { api } from '@/lib/api';
+import { AddLicenceModal } from '@/components/add-licence-modal';
 
 export default function LicencesPage() {
   const [status, setStatus] = useState('');
+  const [addModalOpen, setAddModalOpen] = useState(false);
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies'],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; name: string }[]>('/companies');
+      return res.data ?? [];
+    },
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['licences', status],
@@ -33,10 +44,26 @@ export default function LicencesPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Licences</h1>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Pregled licenci. Filtriraj po statusu (ACTIVE/EXPIRED…).
-      </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Licences</h1>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            Pregled licenci. Filtriraj po statusu (ACTIVE/EXPIRED…).
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAddModalOpen(true)}
+          className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+        >
+          Add new Licence
+        </button>
+      </div>
+      <AddLicenceModal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        companies={companies}
+      />
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <label className="text-sm text-zinc-600 dark:text-zinc-400">
           Status

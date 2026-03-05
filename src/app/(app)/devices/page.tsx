@@ -4,9 +4,20 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { getDevices, type Device } from '@/lib/api';
+import { api } from '@/lib/api';
+import { AddDeviceModal } from '@/components/add-device-modal';
 
 export default function DevicesPage() {
   const [search, setSearch] = useState('');
+  const [addModalOpen, setAddModalOpen] = useState(false);
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies'],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; name: string }[]>('/companies');
+      return res.data ?? [];
+    },
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['devices', search],
@@ -33,10 +44,26 @@ export default function DevicesPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Devices</h1>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Lista uređaja po tenant-u. Filtriraj po serijskom broju.
-      </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Devices</h1>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            Lista uređaja po tenant-u. Filtriraj po serijskom broju.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAddModalOpen(true)}
+          className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+        >
+          Add new device
+        </button>
+      </div>
+      <AddDeviceModal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        companies={companies}
+      />
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <input
           type="text"

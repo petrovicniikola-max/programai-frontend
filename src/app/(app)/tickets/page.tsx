@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { CreateTicketModal } from '@/components/create-ticket-modal';
+import { SearchableSelect } from '@/components/searchable-select';
 
 interface Ticket {
   id: string;
@@ -43,6 +45,7 @@ export default function TicketsPage() {
   const [assigneeId, setAssigneeId] = useState<string>('');
   const [createdByUserId, setCreatedByUserId] = useState<string>('');
   const [page, setPage] = useState(1);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const { data: users } = useQuery({
     queryKey: ['auth', 'users'],
@@ -77,7 +80,22 @@ export default function TicketsPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Tickets</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Tickets</h1>
+        <button
+          type="button"
+          onClick={() => setCreateModalOpen(true)}
+          className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+        >
+          Create Ticket
+        </button>
+      </div>
+      <CreateTicketModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        users={users}
+        currentUserId={me?.id}
+      />
       <div className="mt-4 flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
           <label className="text-sm text-zinc-600 dark:text-zinc-400">Status</label>
@@ -115,43 +133,38 @@ export default function TicketsPage() {
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm text-zinc-600 dark:text-zinc-400">Assignee</label>
-          <select
+          <SearchableSelect
             value={assigneeId}
-            onChange={(e) => {
-              setAssigneeId(e.target.value);
+            onChange={(v) => {
+              setAssigneeId(v);
               setPage(1);
             }}
-            className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-          >
-            <option value="">All</option>
-            <option value="unassigned">Unassigned</option>
-            {me?.id && (
-              <option value={me.id}>Me</option>
-            )}
-            {users?.map((u) => (
-              <option key={u.id} value={u.id}>
-                {userLabel(u)}
-              </option>
-            ))}
-          </select>
+            options={[
+              { id: '', label: 'All' },
+              { id: 'unassigned', label: 'Unassigned' },
+              ...(users ?? []).map((u) => ({ id: u.id, label: userLabel(u) })),
+            ]}
+            placeholder="All"
+            searchPlaceholder="Pretraži..."
+            className="min-w-[10rem]"
+          />
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm text-zinc-600 dark:text-zinc-400">Created by</label>
-          <select
+          <SearchableSelect
             value={createdByUserId}
-            onChange={(e) => {
-              setCreatedByUserId(e.target.value);
+            onChange={(v) => {
+              setCreatedByUserId(v);
               setPage(1);
             }}
-            className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-          >
-            <option value="">All</option>
-            {users?.map((u) => (
-              <option key={u.id} value={u.id}>
-                {userLabel(u)}
-              </option>
-            ))}
-          </select>
+            options={[
+              { id: '', label: 'All' },
+              ...(users ?? []).map((u) => ({ id: u.id, label: userLabel(u) })),
+            ]}
+            placeholder="All"
+            searchPlaceholder="Pretraži..."
+            className="min-w-[10rem]"
+          />
         </div>
       </div>
       <div className="mt-4 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">

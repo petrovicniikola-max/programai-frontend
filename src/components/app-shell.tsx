@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type User, getPublicBranding, type PublicBranding } from '@/lib/api';
 import { getToken, clearToken, isImpersonating, stopImpersonation } from '@/lib/auth';
 import { QuickCallModal } from './quick-call-modal';
+import { ThemeToggle } from './theme-toggle';
 
 const baseNav = [
   { href: '/dashboard', label: 'Dashboard' },
@@ -69,7 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  const brandName = branding?.brandName?.trim() || 'ProgramAI';
+  const brandName = branding?.brandName?.trim() || 'CRM ESTUAR';
   const brandColour = branding?.primaryColour ?? undefined;
 
   return (
@@ -145,7 +146,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 flex-col">
         <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex flex-col">
-            <div className="text-zinc-500 dark:text-zinc-400">Search (placeholder)</div>
             {user && isImpersonating() && (
               <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
                 Impersonating tenant – actions affect tenant data.
@@ -164,6 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <button
               type="button"
               onClick={() => setQuickCallOpen(true)}
