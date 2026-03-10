@@ -5,11 +5,22 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { getDevices, type Device } from '@/lib/api';
 import { api } from '@/lib/api';
+import { getToken } from '@/lib/auth';
 import { AddDeviceModal } from '@/components/add-device-modal';
+import { ImportDevicesModal } from '@/components/import-devices-modal';
+import { useToast } from '@/components/toast';
+import { DEVICES_ENDPOINT } from '@/lib/endpoints';
+
+const baseURL =
+  typeof window !== 'undefined'
+    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
+    : 'http://localhost:3000';
 
 export default function DevicesPage() {
   const [search, setSearch] = useState('');
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const { showError } = useToast();
 
   const { data: companies = [] } = useQuery({
     queryKey: ['companies'],
@@ -28,6 +39,28 @@ export default function DevicesPage() {
   });
 
   const devices = data ?? [];
+
+  async function exportCsv() {
+    try {
+      const token = getToken();
+      const params = new URLSearchParams();
+      if (search.trim()) params.set('search', search.trim());
+      const q = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`${baseURL}${DEVICES_ENDPOINT}/export${q}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(res.statusText);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `devices_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Export nije uspeo.');
+    }
+  }
 
   let errorMessage: string | null = null;
   if (error) {
@@ -51,19 +84,36 @@ export default function DevicesPage() {
             Lista uređaja po tenant-u. Filtriraj po serijskom broju.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setAddModalOpen(true)}
-          className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          Add new device
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-600 dark:text-zinc-200"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => setImportModalOpen(true)}
+            className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-600 dark:text-zinc-200"
+          >
+            Import
+          </button>
+          <button
+            type="button"
+            onClick={() => setAddModalOpen(true)}
+            className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            Add new device
+          </button>
+        </div>
       </div>
       <AddDeviceModal
         open={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         companies={companies}
       />
+      <ImportDevicesModal open={importModalOpen} onClose={() => setImportModalOpen(false)} />
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <input
           type="text"

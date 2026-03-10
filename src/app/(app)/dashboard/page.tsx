@@ -19,6 +19,15 @@ interface TicketsResponse {
   total: number;
 }
 
+interface DevicesStats {
+  activeCount: number;
+}
+
+interface LicencesStats {
+  activeCount: number;
+  expiring: Record<string, number>;
+}
+
 function Widget({
   title,
   href,
@@ -89,6 +98,22 @@ export default function DashboardPage() {
       const params = new URLSearchParams();
       params.set('limit', '10');
       const res = await api.get<TicketsResponse>(`/tickets?${params.toString()}`);
+      return res.data;
+    },
+  });
+
+  const { data: deviceStats, isLoading: deviceStatsLoading } = useQuery({
+    queryKey: ['devices', 'stats'],
+    queryFn: async () => {
+      const res = await api.get<DevicesStats>('/devices/stats');
+      return res.data;
+    },
+  });
+
+  const { data: licenceStats, isLoading: licenceStatsLoading } = useQuery({
+    queryKey: ['licences', 'stats'],
+    queryFn: async () => {
+      const res = await api.get<LicencesStats>('/licences/stats');
       return res.data;
     },
   });
@@ -166,6 +191,46 @@ export default function DashboardPage() {
               </li>
             ))}
           </ul>
+        </Widget>
+      </div>
+      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <Widget
+          title="Devices overview"
+          href="/devices"
+          loading={deviceStatsLoading}
+        >
+          <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-50">
+            {deviceStats?.activeCount ?? '—'}
+          </p>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Active devices
+          </p>
+        </Widget>
+        <Widget
+          title="Licences overview"
+          href="/licences"
+          loading={licenceStatsLoading}
+        >
+          <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-50">
+            {licenceStats?.activeCount ?? '—'}
+          </p>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Active licences
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {([30, 14, 7, 1] as const).map((d) => (
+              <Link
+                key={d}
+                href={`/licences?expiringInDays=${d}`}
+                className="inline-flex items-center rounded-full border border-emerald-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/60 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+              >
+                <span className="mr-1 font-semibold">
+                  {licenceStats?.expiring?.[String(d)] ?? 0}
+                </span>
+                <span>{d}d</span>
+              </Link>
+            ))}
+          </div>
         </Widget>
       </div>
     </div>

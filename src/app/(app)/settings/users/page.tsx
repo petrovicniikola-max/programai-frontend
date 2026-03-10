@@ -14,6 +14,7 @@ interface SettingsUser {
   role: string;
   isActive: boolean;
   createdAt: string;
+  receiveLicenceExpiryEmails?: boolean;
 }
 
 export default function SettingsUsersPage() {
@@ -98,6 +99,9 @@ export default function SettingsUsersPage() {
                 <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Display name</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Role</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Active</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Licence alerts
+                </th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Actions</th>
               </tr>
             </thead>
@@ -108,6 +112,9 @@ export default function SettingsUsersPage() {
                   <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">{u.displayName ?? '—'}</td>
                   <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">{u.role}</td>
                   <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">{u.isActive ? 'Yes' : 'No'}</td>
+                  <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">
+                    {u.receiveLicenceExpiryEmails ? 'Yes' : 'No'}
+                  </td>
                   <td className="px-4 py-2 text-sm">
                     <button
                       type="button"
@@ -244,17 +251,25 @@ function EditUserForm({
   isLoading,
 }: {
   user: SettingsUser;
-  onSubmit: (body: { displayName?: string; role?: string; isActive?: boolean }) => void;
+  onSubmit: (body: { displayName?: string; role?: string; isActive?: boolean; receiveLicenceExpiryEmails?: boolean }) => void;
   onCancel: () => void;
   isLoading: boolean;
 }) {
   const [displayName, setDisplayName] = useState(user.displayName ?? '');
   const [role, setRole] = useState(user.role);
   const [isActive, setIsActive] = useState(user.isActive);
+  const [receiveLicenceExpiryEmails, setReceiveLicenceExpiryEmails] = useState(
+    user.receiveLicenceExpiryEmails ?? false,
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ displayName: displayName.trim() || undefined, role, isActive });
+    onSubmit({
+      displayName: displayName.trim() || undefined,
+      role,
+      isActive,
+      receiveLicenceExpiryEmails,
+    });
   };
 
   return (
@@ -282,8 +297,26 @@ function EditUserForm({
         </select>
       </div>
       <div className="flex items-center gap-2">
-        <input type="checkbox" id="isActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-        <label htmlFor="isActive" className="text-sm text-zinc-700 dark:text-zinc-300">Active</label>
+        <input
+          type="checkbox"
+          id="isActive"
+          checked={isActive}
+          onChange={(e) => setIsActive(e.target.checked)}
+        />
+        <label htmlFor="isActive" className="text-sm text-zinc-700 dark:text-zinc-300">
+          Active
+        </label>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="licenceAlerts"
+          checked={receiveLicenceExpiryEmails}
+          onChange={(e) => setReceiveLicenceExpiryEmails(e.target.checked)}
+        />
+        <label htmlFor="licenceAlerts" className="text-sm text-zinc-700 dark:text-zinc-300">
+          Receive licence expiry alerts
+        </label>
       </div>
       <div className="flex justify-end gap-2 pt-2">
         <button type="button" onClick={onCancel} className="rounded px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400">Cancel</button>

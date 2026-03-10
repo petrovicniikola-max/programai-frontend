@@ -101,6 +101,34 @@ export default function TicketDetailPage({
     enabled: !!ticket,
   });
 
+  const { data: relatedDevices = [] } = useQuery({
+    queryKey: ['ticket', id, 'devices', ticket?.company?.id],
+    queryFn: async () => {
+      if (!ticket?.company?.id) return [];
+      const res = await api.get<Device[]>('/devices', {
+        params: { companyId: ticket.company.id },
+      });
+      return res.data ?? [];
+    },
+    enabled: !!ticket?.company?.id,
+  });
+
+  const { data: relatedLicences = [] } = useQuery({
+    queryKey: ['ticket', id, 'licences', ticket?.company?.id],
+    queryFn: async () => {
+      if (!ticket?.company?.id) return [];
+      const res = await api.get<
+        (Licence & {
+          device?: { id: string; name: string | null; serialNo: string | null } | null;
+        })[]
+      >('/licences', {
+        params: { companyId: ticket.company.id },
+      });
+      return res.data ?? [];
+    },
+    enabled: !!ticket?.company?.id,
+  });
+
   const { data: me } = useQuery({
     queryKey: ['me'],
     queryFn: async () => {
@@ -553,6 +581,61 @@ export default function TicketDetailPage({
               </select>
             </div>
           )}
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
+            <h2 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Devices for this company
+            </h2>
+            {relatedDevices.length === 0 && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">No devices found.</p>
+            )}
+            {relatedDevices.length > 0 && (
+              <ul className="space-y-1">
+                {relatedDevices.map((d) => (
+                  <li key={d.id}>
+                    <Link
+                      href={`/devices/${d.id}`}
+                      className="text-sm text-emerald-600 hover:underline dark:text-emerald-400"
+                    >
+                      {d.name || d.model || d.serialNo || 'Device'}
+                    </Link>
+                    {d.serialNo && (
+                      <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        ({d.serialNo})
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
+            <h2 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Licences for this company
+            </h2>
+            {relatedLicences.length === 0 && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">No licences found.</p>
+            )}
+            {relatedLicences.length > 0 && (
+              <ul className="space-y-1">
+                {relatedLicences.map((l) => (
+                  <li key={l.id}>
+                    <Link
+                      href={`/licences/${l.id}`}
+                      className="text-sm text-emerald-600 hover:underline dark:text-emerald-400"
+                    >
+                      {l.productName}
+                    </Link>
+                    <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                      {new Date(l.validTo).toLocaleDateString()}
+                      {l.device?.serialNo ? ` · ${l.device.serialNo}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
     </div>

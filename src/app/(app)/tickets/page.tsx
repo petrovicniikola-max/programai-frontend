@@ -44,6 +44,7 @@ export default function TicketsPage() {
   const [type, setType] = useState<string>('');
   const [assigneeId, setAssigneeId] = useState<string>('');
   const [createdByUserId, setCreatedByUserId] = useState<string>('');
+  const [companyId, setCompanyId] = useState<string>('');
   const [page, setPage] = useState(1);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
@@ -63,14 +64,23 @@ export default function TicketsPage() {
     },
   });
 
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies'],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; name: string }[]>('/companies');
+      return res.data ?? [];
+    },
+  });
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['tickets', status, type, assigneeId, createdByUserId, page],
+    queryKey: ['tickets', status, type, assigneeId, createdByUserId, companyId, page],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status) params.set('status', status);
       if (type) params.set('type', type);
       if (assigneeId) params.set('assigneeId', assigneeId);
       if (createdByUserId) params.set('createdByUserId', createdByUserId);
+      if (companyId) params.set('companyId', companyId);
       params.set('page', String(page));
       params.set('limit', '20');
       const res = await api.get<TicketsResponse>(`/tickets?${params.toString()}`);
@@ -164,6 +174,23 @@ export default function TicketsPage() {
             placeholder="All"
             searchPlaceholder="Pretraži..."
             className="min-w-[10rem]"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-zinc-600 dark:text-zinc-400">Company</label>
+          <SearchableSelect
+            value={companyId}
+            onChange={(v) => {
+              setCompanyId(v);
+              setPage(1);
+            }}
+            options={[
+              { id: '', label: 'All' },
+              ...companies.map((c) => ({ id: c.id, label: c.name })),
+            ]}
+            placeholder="All"
+            searchPlaceholder="Pretraži kompanije..."
+            className="min-w-[12rem]"
           />
         </div>
       </div>

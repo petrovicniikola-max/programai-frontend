@@ -3,13 +3,32 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { getLicences, type Licence } from '@/lib/api';
 import { api } from '@/lib/api';
+import { getToken } from '@/lib/auth';
 import { AddLicenceModal } from '@/components/add-licence-modal';
+import { ImportLicencesModal } from '@/components/import-licences-modal';
+import { useToast } from '@/components/toast';
+import { LICENCES_ENDPOINT } from '@/lib/endpoints';
+import { SearchableSelect } from '@/components/searchable-select';
+
+const baseURL =
+  typeof window !== 'undefined'
+    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
+    : 'http://localhost:3000';
 
 export default function LicencesPage() {
+  const searchParams = useSearchParams();
+  const initialExpiring = searchParams.get('expiringInDays');
   const [status, setStatus] = useState('');
+  const [companyId, setCompanyId] = useState('');
+  const [expiringInDays, setExpiringInDays] = useState<number | null>(
+    initialExpiring ? Number(initialExpiring) || null : null,
+  );
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const { showError } = useToast();
 
   const { data: companies = [] } = useQuery({
     queryKey: ['companies'],
@@ -20,14 +39,43 @@ export default function LicencesPage() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['licences', status],
+    queryKey: ['licences', status, companyId, expiringInDays],
     queryFn: async () => {
-      const params = status ? { status } : undefined;
+      const params: {
+        status?: string;
+        companyId?: string;
+        expiringInDays?: number;
+      } = {};
+      if (status) params.status = status;
+      if (companyId) params.companyId = companyId;
+      if (expiringInDays != null) params.expiringInDays = expiringInDays;
       return getLicences(params);
     },
   });
 
   const licences = data ?? [];
+
+  async function exportCsv() {
+    try {
+      const token = getToken();
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      const q = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`${baseURL}${LICENCES_ENDPOINT}/export${q}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(res.statusText);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `licences_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Export nije uspeo.');
+    }
+  }
 
   let errorMessage: string | null = null;
   if (error) {
@@ -51,19 +99,36 @@ export default function LicencesPage() {
             Pregled licenci. Filtriraj po statusu (ACTIVE/EXPIRED…).
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setAddModalOpen(true)}
-          className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          Add new Licence
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-600 dark:text-zinc-200"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => setImportModalOpen(true)}
+            className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-600 dark:text-zinc-200"
+          >
+            Import
+          </button>
+          <button
+            type="button"
+            onClick={() => setAddModalOpen(true)}
+            className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            Add new Licence
+          </button>
+        </div>
       </div>
       <AddLicenceModal
         open={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         companies={companies}
       />
+      <ImportLicencesModal open={importModalOpen} onClose={() => setImportModalOpen(false)} />
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <label className="text-sm text-zinc-600 dark:text-zinc-400">
           Status
@@ -79,6 +144,49 @@ export default function LicencesPage() {
             <option value="CANCELLED">CANCELLED</option>
           </select>
         </label>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">Company</span>
+          <SearchableSelect
+            value={companyId}
+            onChange={setCompanyId}
+            options={[
+              { id: '', label: 'All' },
+              ...companies.map((c) => ({ id: c.id, label: c.name })),
+            ]}
+            placeholder="All"
+            searchPlaceholder="Pretraži kompanije..."
+            className="min-w-[12rem]"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">Expiring</span>
+          {([30, 14, 7, 1] as const).map((d) => {
+            const active = expiringInDays === d;
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setExpiringInDays(d)}
+                className={`rounded-full px-3 py-1 text-xs ${
+                  active
+                    ? 'bg-emerald-600 text-white'
+                    : 'border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700'
+                }`}
+              >
+                {d} days
+              </button>
+            );
+          })}
+          {expiringInDays != null && (
+            <button
+              type="button"
+              onClick={() => setExpiringInDays(null)}
+              className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
       {isLoading && <p className="mt-4 text-sm text-zinc-500">Loading…</p>}
       {errorMessage && (
