@@ -13,16 +13,27 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const defaultBranding: PublicBranding = { brandName: 'CRM ESTUAR', primaryColour: null, logoUrl: null };
   const { data: branding } = useQuery<PublicBranding>({
     queryKey: ['public', 'branding'],
-    queryFn: async () => getPublicBranding(),
+    queryFn: async () => {
+      try {
+        return await getPublicBranding();
+      } catch {
+        return defaultBranding;
+      }
+    },
+    retry: false,
+    staleTime: 60_000,
+    placeholderData: defaultBranding,
   });
+  const effectiveBranding = branding ?? defaultBranding;
 
   useEffect(() => {
-    if (branding?.brandName && typeof document !== 'undefined') {
-      document.title = branding.brandName;
+    if (effectiveBranding.brandName && typeof document !== 'undefined') {
+      document.title = effectiveBranding.brandName;
     }
-  }, [branding?.brandName]);
+  }, [effectiveBranding.brandName]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,9 +67,12 @@ export default function LoginPage() {
         }
       } else if (err && typeof err === 'object' && 'message' in err && typeof (err as Error).message === 'string') {
         msg = (err as Error).message;
-      } else if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'ERR_NETWORK') {
-        const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
-        msg = `Cannot reach server at ${base}. Is the backend running?`;
+      } else if (err && typeof err === 'object' && 'code' in err) {
+        const code = (err as { code?: string }).code;
+        const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+        if (code === 'ERR_NETWORK' || code === 'ERR_EMPTY_RESPONSE' || !(err as { response?: unknown }).response) {
+          msg = `Server did not respond. Is the backend running at ${base}?`;
+        }
       }
       setError(msg);
     } finally {
@@ -66,17 +80,17 @@ export default function LoginPage() {
     }
   }
 
-  const brandName = branding?.brandName?.trim() || 'CRM ESTUAR';
-  const brandColour = branding?.primaryColour ?? undefined;
+  const brandName = effectiveBranding.brandName?.trim() || 'CRM ESTUAR';
+  const brandColour = effectiveBranding.primaryColour ?? undefined;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-100 dark:bg-zinc-900">
       <div className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-6 shadow dark:border-zinc-700 dark:bg-zinc-800">
         <div className="mb-4 flex flex-col items-center gap-2">
-          {branding?.logoUrl && (
+          {effectiveBranding.logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={branding.logoUrl}
+              src={effectiveBranding.logoUrl}
               alt={brandName}
               className="h-10 w-auto rounded-sm border border-zinc-200 bg-white object-contain dark:border-zinc-700"
             />

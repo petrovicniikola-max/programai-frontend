@@ -32,10 +32,10 @@ function contactPhonesDisplay(phones: ContactPhone[] | undefined): string {
   return phones.map((p) => p.phoneRaw).join(', ');
 }
 
-const tabs = ['Companies', 'Contacts'] as const;
+const tabs = ['Korisnici', 'Kontakti'] as const;
 
 export default function ClientsPage() {
-  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Companies');
+  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Korisnici');
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [phoneSearch, setPhoneSearch] = useState('');
@@ -101,9 +101,9 @@ export default function ClientsPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Clients</h1>
+      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Korisnici</h1>
       <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-        Companies and contacts.
+        Korisnici (kompanije) i kontakti.
       </p>
 
       <div className="mt-4 flex gap-2 border-b border-zinc-200 dark:border-zinc-700">
@@ -123,7 +123,7 @@ export default function ClientsPage() {
         ))}
       </div>
 
-      {activeTab === 'Companies' && (
+      {activeTab === 'Korisnici' && (
         <div className="mt-4">
           <div className="flex justify-end mb-3">
             <button
@@ -131,7 +131,7 @@ export default function ClientsPage() {
               onClick={() => setCompanyModalOpen(true)}
               className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
             >
-              Create company
+              Dodaj korisnika
             </button>
           </div>
           {companiesLoading ? (
@@ -150,7 +150,11 @@ export default function ClientsPage() {
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
                   {companies.map((c) => (
                     <tr key={c.id} className="bg-white dark:bg-zinc-800/30">
-                      <td className="px-4 py-2 text-sm font-medium text-zinc-900 dark:text-zinc-50">{c.name}</td>
+                      <td className="px-4 py-2 text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                        <Link href={`/clients/${c.id}`} className="text-emerald-600 hover:underline dark:text-emerald-400">
+                          {c.name}
+                        </Link>
+                      </td>
                       <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">{c.city ?? '—'}</td>
                       <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">{c.address ?? '—'}</td>
                       <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -161,14 +165,14 @@ export default function ClientsPage() {
                 </tbody>
               </table>
               {companies.length === 0 && (
-                <p className="p-4 text-center text-sm text-zinc-500">No companies yet.</p>
+                <p className="p-4 text-center text-sm text-zinc-500">Nema korisnika.</p>
               )}
             </div>
           )}
         </div>
       )}
 
-      {activeTab === 'Contacts' && (
+      {activeTab === 'Kontakti' && (
         <div className="mt-4">
           <div className="mb-4 flex flex-wrap items-center gap-4">
             <div>
@@ -188,7 +192,7 @@ export default function ClientsPage() {
                 onChange={(e) => setSelectedCompanyId(e.target.value || null)}
                 className="mt-1 rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
               >
-                <option value="">All companies</option>
+                <option value="">Sve kompanije</option>
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -200,7 +204,7 @@ export default function ClientsPage() {
                 onClick={() => setContactModalOpen(true)}
                 className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
               >
-                Create contact
+                Dodaj kontakt
               </button>
             </div>
           </div>
@@ -216,7 +220,12 @@ export default function ClientsPage() {
                     <li key={c.id}>
                       <Link
                         href="#"
-                        onClick={(e) => { e.preventDefault(); setActiveTab('Contacts'); setPhoneSearch(''); setSelectedCompanyId(c.companyId ?? null); }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setActiveTab('Kontakti');
+                          setPhoneSearch('');
+                          setSelectedCompanyId(c.companyId ?? null);
+                        }}
                         className="text-sm font-medium text-emerald-600 hover:underline dark:text-emerald-400"
                       >
                         {c.name}
@@ -312,7 +321,7 @@ function CreateCompanyModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Create company">
+    <Modal open={open} onClose={onClose} title="Dodaj korisnika (kompaniju)">
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Name *</label>
@@ -405,7 +414,7 @@ function CreateContactModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Create contact">
+    <Modal open={open} onClose={onClose} title="Dodaj kontakt">
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Name *</label>

@@ -12,9 +12,10 @@ import { ThemeToggle } from './theme-toggle';
 const baseNav = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/tickets', label: 'Tickets' },
-  { href: '/clients', label: 'Clients' },
+  { href: '/clients', label: 'Korisnici' },
   { href: '/devices', label: 'Devices' },
   { href: '/licences', label: 'Licences' },
+  { href: '/reports', label: 'Reports' },
   { href: '/forms', label: 'Forms' },
   { href: '/tables', label: 'Tables' },
 ];
@@ -43,16 +44,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     retry: false,
   });
 
+  const defaultBranding: PublicBranding = { brandName: 'CRM ESTUAR', primaryColour: null, logoUrl: null };
   const { data: branding } = useQuery<PublicBranding>({
     queryKey: ['public', 'branding'],
-    queryFn: async () => getPublicBranding(),
+    queryFn: async () => {
+      try {
+        return await getPublicBranding();
+      } catch {
+        return defaultBranding;
+      }
+    },
+    retry: false,
+    staleTime: 60_000,
+    placeholderData: defaultBranding,
   });
+  const effectiveBranding = branding ?? defaultBranding;
 
   useEffect(() => {
-    if (branding?.brandName && typeof document !== 'undefined') {
-      document.title = branding.brandName;
+    if (effectiveBranding.brandName && typeof document !== 'undefined') {
+      document.title = effectiveBranding.brandName;
     }
-  }, [branding?.brandName]);
+  }, [effectiveBranding.brandName]);
 
   async function handleLogout() {
     try {
@@ -70,18 +82,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  const brandName = branding?.brandName?.trim() || 'CRM ESTUAR';
-  const brandColour = branding?.primaryColour ?? undefined;
+  const brandName = effectiveBranding.brandName?.trim() || 'CRM ESTUAR';
+  const brandColour = effectiveBranding.primaryColour ?? undefined;
 
   return (
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <aside className="flex w-56 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
           <Link href="/dashboard" className="flex items-center gap-2">
-            {branding?.logoUrl && (
+            {effectiveBranding.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={branding.logoUrl}
+                src={effectiveBranding.logoUrl}
                 alt={brandName}
                 className="h-8 w-auto rounded-sm border border-zinc-200 bg-white object-contain dark:border-zinc-700"
               />
@@ -100,7 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               key={href}
               href={href}
               className={`block rounded px-3 py-2 text-sm font-medium ${
-                pathname === href
+                pathname === href || (href !== '/reports' ? false : pathname.startsWith('/reports'))
                   ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-50'
                   : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50'
               }`}

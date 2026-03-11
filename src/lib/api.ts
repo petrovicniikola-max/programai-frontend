@@ -4,8 +4,8 @@ import { DEVICES_ENDPOINT, LICENCES_ENDPOINT } from './endpoints';
 
 const baseURL =
   typeof window !== 'undefined'
-    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
-    : process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
+    : process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
 export const api = axios.create({
   baseURL,
@@ -69,7 +69,7 @@ api.interceptors.request.use((config) => {
     // Dev-only warning so it's obvious where backend URL dolazi
     // eslint-disable-next-line no-console
     console.warn(
-      '[API] NEXT_PUBLIC_API_BASE_URL is not set. Using http://localhost:3000 as fallback base URL (dev only).',
+      '[API] NEXT_PUBLIC_API_BASE_URL is not set. Using http://localhost:3001 as fallback (backend).',
     );
     baseUrlWarned = true;
   }
@@ -119,7 +119,7 @@ export interface User {
   id: string;
   email: string;
   displayName?: string;
-  role: 'SUPER_ADMIN' | 'SUPPORT' | 'SALES';
+  role: 'SUPER_ADMIN' | 'SUPPORT' | 'SALES' | 'USER';
   tenantId: string | null;
   isPlatformAdmin?: boolean;
   isPlatformImpersonation?: boolean;
@@ -146,6 +146,8 @@ export interface Device {
   model: string | null;
   serialNo: string | null;
   status: string;
+  notes: string | null;
+  mdmProfileName?: string | null;
   updatedAt: string;
   company?: { id: string; name: string } | null;
 }
@@ -159,6 +161,7 @@ export interface Licence {
   status: string;
   validFrom: string | null;
   validTo: string;
+  notes: string | null;
   updatedAt: string;
   company?: { id: string; name: string } | null;
   device?: { id: string; name: string | null; serialNo: string | null } | null;
@@ -168,6 +171,8 @@ export async function getDevices(params?: {
   companyId?: string;
   status?: string;
   search?: string;
+  createdAtFrom?: string;
+  createdAtTo?: string;
 }): Promise<Device[]> {
   const res = await api.get<Device[]>(DEVICES_ENDPOINT, { params });
   return res.data;
@@ -179,6 +184,8 @@ export async function getLicences(params?: {
   validFrom?: string;
   validTo?: string;
   expiringInDays?: number;
+  expiringFromDays?: number;
+  expiringToDays?: number;
 }): Promise<Licence[]> {
   const res = await api.get<Licence[]>(LICENCES_ENDPOINT, { params });
   return res.data;
@@ -188,6 +195,23 @@ export async function getPublicBranding(tenantSlug?: string): Promise<PublicBran
   const res = await api.get<PublicBranding>('/public/branding', {
     params: tenantSlug ? { tenantSlug } : undefined,
   });
+  return res.data;
+}
+
+// Reports
+
+export interface ReportsOverview {
+  ticketsByStatus: Record<string, number>;
+  ticketsByType: Record<string, number>;
+  activeDevices: number;
+  activeLicences: number;
+  expiringLicences: Record<string, number>;
+  expiringLicencesDays?: number[];
+  companiesCount: number;
+}
+
+export async function getReportsOverview(): Promise<ReportsOverview> {
+  const res = await api.get<ReportsOverview>('/reports/overview');
   return res.data;
 }
 

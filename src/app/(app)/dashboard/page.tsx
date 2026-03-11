@@ -26,6 +26,7 @@ interface DevicesStats {
 interface LicencesStats {
   activeCount: number;
   expiring: Record<string, number>;
+  expiringDays?: number[];
 }
 
 function Widget({
@@ -218,18 +219,27 @@ export default function DashboardPage() {
             Active licences
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {([30, 14, 7, 1] as const).map((d) => (
-              <Link
-                key={d}
-                href={`/licences?expiringInDays=${d}`}
-                className="inline-flex items-center rounded-full border border-emerald-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/60 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
-              >
-                <span className="mr-1 font-semibold">
-                  {licenceStats?.expiring?.[String(d)] ?? 0}
-                </span>
-                <span>{d}d</span>
-              </Link>
-            ))}
+            {(licenceStats?.expiringDays ?? [30, 14, 7, 1]).map((d, i, arr) => {
+              const prev = i < arr.length - 1 ? arr[i + 1]! : 0;
+              const from = prev + 1;
+              const to = d;
+              const label = d === 1 ? '≤1d' : `${d}d`;
+              const href = from < to
+                ? `/licences?expiringFromDays=${from}&expiringToDays=${to}`
+                : `/licences?expiringFromDays=0&expiringToDays=${to}`;
+              return (
+                <Link
+                  key={d}
+                  href={href}
+                  className="inline-flex items-center rounded-full border border-emerald-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/60 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+                >
+                  <span className="mr-1 font-semibold">
+                    {licenceStats?.expiring?.[String(d)] ?? 0}
+                  </span>
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
           </div>
         </Widget>
       </div>

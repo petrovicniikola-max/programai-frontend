@@ -4,8 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
-import { getLicences, type Licence } from '@/lib/api';
-import { api } from '@/lib/api';
+import { getLicences, type Licence, api, type User } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { AddLicenceModal } from '@/components/add-licence-modal';
 import { ImportLicencesModal } from '@/components/import-licences-modal';
@@ -15,20 +14,35 @@ import { SearchableSelect } from '@/components/searchable-select';
 
 const baseURL =
   typeof window !== 'undefined'
-    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
-    : 'http://localhost:3000';
+    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
+    : 'http://localhost:3001';
+
+const DEFAULT_EXPIRING_DAYS = [30, 14, 7, 1];
 
 export default function LicencesPage() {
   const searchParams = useSearchParams();
-  const initialExpiring = searchParams.get('expiringInDays');
+  const expiringFromParam = searchParams.get('expiringFromDays');
+  const expiringToParam = searchParams.get('expiringToDays');
+  const expiringInParam = searchParams.get('expiringInDays');
+  const expiringFromDays = expiringFromParam !== null && expiringFromParam !== '' ? Number(expiringFromParam) : null;
+  const expiringToDays = expiringToParam !== null && expiringToParam !== '' ? Number(expiringToParam) : null;
+  const expiringInDays = expiringInParam !== null && expiringInParam !== '' ? Number(expiringInParam) : null;
+
   const [status, setStatus] = useState('');
   const [companyId, setCompanyId] = useState('');
-  const [expiringInDays, setExpiringInDays] = useState<number | null>(
-    initialExpiring ? Number(initialExpiring) || null : null,
-  );
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const { showError } = useToast();
+
+  const { data: licenceStats } = useQuery({
+    queryKey: ['licences', 'stats'],
+    queryFn: async () => {
+      const res = await api.get<{ activeCount: number; expiring: Record<string, number>; expiringDays?: number[] }>('/licences/stats');
+      return res.data;
+    },
+  });
+
+  const expiringDays = licenceStats?.expiringDays ?? DEFAULT_EXPIRING_DAYS;
 
   const { data: companies = [] } = useQuery({
     queryKey: ['companies'],
@@ -38,17 +52,37 @@ export default function LicencesPage() {
     },
   });
 
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => {
+      const res = await api.get<User>('/auth/me');
+      return res.data;
+    },
+  });
+
+  const canEdit = me?.role === 'SUPER_ADMIN';
+
+  const hasRangeFilter = expiringFromDays != null && expiringToDays != null;
+  const hasLegacyFilter = !hasRangeFilter && expiringInDays != null;
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['licences', status, companyId, expiringInDays],
+    queryKey: ['licences', status, companyId, expiringFromDays, expiringToDays, expiringInDays],
     queryFn: async () => {
       const params: {
         status?: string;
         companyId?: string;
         expiringInDays?: number;
+        expiringFromDays?: number;
+        expiringToDays?: number;
       } = {};
       if (status) params.status = status;
       if (companyId) params.companyId = companyId;
-      if (expiringInDays != null) params.expiringInDays = expiringInDays;
+      if (hasRangeFilter) {
+        params.expiringFromDays = expiringFromDays!;
+        params.expiringToDays = expiringToDays!;
+      } else if (hasLegacyFilter) {
+        params.expiringInDays = expiringInDays!;
+      }
       return getLicences(params);
     },
   });
@@ -60,6 +94,13 @@ export default function LicencesPage() {
       const token = getToken();
       const params = new URLSearchParams();
       if (status) params.set('status', status);
+      if (companyId) params.set('companyId', companyId);
+      if (hasRangeFilter) {
+        params.set('expiringFromDays', String(expiringFromDays));
+        params.set('expiringToDays', String(expiringToDays));
+      } else if (hasLegacyFilter) {
+        params.set('expiringInDays', String(expiringInDays));
+      }
       const q = params.toString() ? `?${params.toString()}` : '';
       const res = await fetch(`${baseURL}${LICENCES_ENDPOINT}/export${q}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -160,31 +201,37 @@ export default function LicencesPage() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-zinc-600 dark:text-zinc-400">Expiring</span>
-          {([30, 14, 7, 1] as const).map((d) => {
-            const active = expiringInDays === d;
+          {expiringDays.map((d, i, arr) => {
+            const prev = i < arr.length - 1 ? arr[i + 1]! : 0;
+            const from = prev + 1;
+            const to = d;
+            const label = d === 1 ? '≤1d' : `${d}d`;
+            const active = hasRangeFilter && expiringFromDays === from && expiringToDays === to;
+            const href = from < to
+              ? `/licences?expiringFromDays=${from}&expiringToDays=${to}`
+              : `/licences?expiringFromDays=0&expiringToDays=${to}`;
             return (
-              <button
+              <Link
                 key={d}
-                type="button"
-                onClick={() => setExpiringInDays(d)}
-                className={`rounded-full px-3 py-1 text-xs ${
+                href={href}
+                className={`inline-flex items-center rounded-full px-3 py-1 text-xs ${
                   active
                     ? 'bg-emerald-600 text-white'
                     : 'border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700'
                 }`}
               >
-                {d} days
-              </button>
+                <span className="mr-1 font-semibold">{licenceStats?.expiring?.[String(d)] ?? 0}</span>
+                {label}
+              </Link>
             );
           })}
-          {expiringInDays != null && (
-            <button
-              type="button"
-              onClick={() => setExpiringInDays(null)}
+          {(hasRangeFilter || hasLegacyFilter) && (
+            <Link
+              href="/licences"
               className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
             >
               Clear
-            </button>
+            </Link>
           )}
         </div>
       </div>
@@ -205,6 +252,9 @@ export default function LicencesPage() {
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Status</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Valid to</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Updated</th>
+                {canEdit && (
+                  <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -222,11 +272,21 @@ export default function LicencesPage() {
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
                     {new Date(l.updatedAt).toLocaleString()}
                   </td>
+                  {canEdit && (
+                    <td className="px-4 py-2">
+                      <Link
+                        href={`/licences/${l.id}`}
+                        className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                      >
+                        Edit
+                      </Link>
+                    </td>
+                  )}
                 </tr>
               ))}
               {licences.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-3 text-center text-sm text-zinc-500">
+                  <td colSpan={canEdit ? 7 : 6} className="px-4 py-3 text-center text-sm text-zinc-500">
                     No licences found.
                   </td>
                 </tr>
@@ -235,10 +295,6 @@ export default function LicencesPage() {
           </table>
         </div>
       )}
-      <p className="mt-4 text-xs text-zinc-500 dark:text-zinc-500">
-        Ako backend path za licence nije <code>/licences</code>, promijeni <code>LICENCES_ENDPOINT</code> u{' '}
-        <code>src/lib/endpoints.ts</code>.
-      </p>
     </div>
   );
 }

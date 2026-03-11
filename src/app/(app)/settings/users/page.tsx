@@ -232,6 +232,7 @@ function CreateUserForm({
           <option value="SUPER_ADMIN">SUPER_ADMIN</option>
           <option value="SUPPORT">SUPPORT</option>
           <option value="SALES">SALES</option>
+          <option value="USER">USER</option>
         </select>
       </div>
       <div className="flex justify-end gap-2 pt-2">
@@ -294,6 +295,7 @@ function EditUserForm({
           <option value="SUPER_ADMIN">SUPER_ADMIN</option>
           <option value="SUPPORT">SUPPORT</option>
           <option value="SALES">SALES</option>
+          <option value="USER">USER</option>
         </select>
       </div>
       <div className="flex items-center gap-2">

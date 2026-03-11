@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, type Device, type Licence } from '@/lib/api';
 import { useToast } from '@/components/toast';
 
 interface TicketDetail {

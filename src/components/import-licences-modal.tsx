@@ -10,8 +10,8 @@ import { LICENCES_ENDPOINT } from '@/lib/endpoints';
 
 const baseURL =
   typeof window !== 'undefined'
-    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
-    : 'http://localhost:3000';
+    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
+    : 'http://localhost:3001';
 
 interface ImportLicencesModalProps {
   open: boolean;

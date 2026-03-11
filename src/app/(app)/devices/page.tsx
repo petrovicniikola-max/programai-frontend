@@ -3,38 +3,42 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { getDevices, type Device } from '@/lib/api';
-import { api } from '@/lib/api';
+import { useSearchParams } from 'next/navigation';
+import { getDevices, type Device, api, type User } from '@/lib/api';
 import { getToken } from '@/lib/auth';
-import { AddDeviceModal } from '@/components/add-device-modal';
 import { ImportDevicesModal } from '@/components/import-devices-modal';
 import { useToast } from '@/components/toast';
 import { DEVICES_ENDPOINT } from '@/lib/endpoints';
 
 const baseURL =
   typeof window !== 'undefined'
-    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
-    : 'http://localhost:3000';
+    ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
+    : 'http://localhost:3001';
 
 export default function DevicesPage() {
+  const searchParams = useSearchParams();
+  const companyIdFromUrl = searchParams.get('companyId') ?? '';
   const [search, setSearch] = useState('');
-  const [addModalOpen, setAddModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const { showError } = useToast();
 
-  const { data: companies = [] } = useQuery({
-    queryKey: ['companies'],
+  const { data: me } = useQuery({
+    queryKey: ['me'],
     queryFn: async () => {
-      const res = await api.get<{ id: string; name: string }[]>('/companies');
-      return res.data ?? [];
+      const res = await api.get<User>('/auth/me');
+      return res.data;
     },
   });
 
+  const canEdit = me?.role === 'SUPER_ADMIN';
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['devices', search],
+    queryKey: ['devices', search, companyIdFromUrl],
     queryFn: async () => {
-      const params = search.trim() ? { search: search.trim() } : undefined;
-      return getDevices(params);
+      const params: { search?: string; companyId?: string } = {};
+      if (search.trim()) params.search = search.trim();
+      if (companyIdFromUrl) params.companyId = companyIdFromUrl;
+      return getDevices(Object.keys(params).length ? params : undefined);
     },
   });
 
@@ -99,20 +103,14 @@ export default function DevicesPage() {
           >
             Import
           </button>
-          <button
-            type="button"
-            onClick={() => setAddModalOpen(true)}
+          <Link
+            href="/devices/add"
             className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
           >
-            Add new device
-          </button>
+            Dodaj novi uređaj
+          </Link>
         </div>
       </div>
-      <AddDeviceModal
-        open={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        companies={companies}
-      />
       <ImportDevicesModal open={importModalOpen} onClose={() => setImportModalOpen(false)} />
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <input
@@ -140,6 +138,9 @@ export default function DevicesPage() {
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Company</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Status</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Updated</th>
+                {canEdit && (
+                  <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -153,11 +154,21 @@ export default function DevicesPage() {
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
                     {new Date(d.updatedAt).toLocaleString()}
                   </td>
+                  {canEdit && (
+                    <td className="px-4 py-2">
+                      <Link
+                        href={`/devices/${d.id}`}
+                        className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                      >
+                        Edit
+                      </Link>
+                    </td>
+                  )}
                 </tr>
               ))}
               {devices.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-3 text-center text-sm text-zinc-500">
+                  <td colSpan={canEdit ? 7 : 6} className="px-4 py-3 text-center text-sm text-zinc-500">
                     No devices found.
                   </td>
                 </tr>
@@ -166,17 +177,6 @@ export default function DevicesPage() {
           </table>
         </div>
       )}
-      <p className="mt-4 text-xs text-zinc-500 dark:text-zinc-500">
-        Ako backend path za uređaje nije <code>/devices</code>, promijeni <code>DEVICES_ENDPOINT</code> u{' '}
-        <code>src/lib/endpoints.ts</code>.
-      </p>
-      <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">
-        Nazad na{' '}
-        <Link href="/dashboard" className="text-emerald-600 hover:underline dark:text-emerald-400">
-          Dashboard
-        </Link>
-        .
-      </p>
     </div>
   );
 }

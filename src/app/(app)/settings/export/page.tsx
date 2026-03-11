@@ -8,8 +8,8 @@ import { useToast } from '@/components/toast';
 import { getToken } from '@/lib/auth';
 
 const baseURL = typeof window !== 'undefined'
-  ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
-  : 'http://localhost:3000';
+  ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
+  : 'http://localhost:3001';
 
 interface FormItem {
   id: string;
