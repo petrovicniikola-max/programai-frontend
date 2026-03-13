@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
@@ -19,7 +19,7 @@ const baseURL =
 
 const DEFAULT_EXPIRING_DAYS = [30, 14, 7, 1];
 
-export default function LicencesPage() {
+function LicencesPageInner() {
   const searchParams = useSearchParams();
   const expiringFromParam = searchParams.get('expiringFromDays');
   const expiringToParam = searchParams.get('expiringToDays');
@@ -37,7 +37,9 @@ export default function LicencesPage() {
   const { data: licenceStats } = useQuery({
     queryKey: ['licences', 'stats'],
     queryFn: async () => {
-      const res = await api.get<{ activeCount: number; expiring: Record<string, number>; expiringDays?: number[] }>('/licences/stats');
+      const res = await api.get<{ activeCount: number; expiring: Record<string, number>; expiringDays?: number[] }>(
+        '/licences/stats',
+      );
       return res.data;
     },
   });
@@ -164,11 +166,7 @@ export default function LicencesPage() {
           </button>
         </div>
       </div>
-      <AddLicenceModal
-        open={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        companies={companies}
-      />
+      <AddLicenceModal open={addModalOpen} onClose={() => setAddModalOpen(false)} companies={companies} />
       <ImportLicencesModal open={importModalOpen} onClose={() => setImportModalOpen(false)} />
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <label className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -207,9 +205,8 @@ export default function LicencesPage() {
             const to = d;
             const label = d === 1 ? '≤1d' : `${d}d`;
             const active = hasRangeFilter && expiringFromDays === from && expiringToDays === to;
-            const href = from < to
-              ? `/licences?expiringFromDays=${from}&expiringToDays=${to}`
-              : `/licences?expiringFromDays=0&expiringToDays=${to}`;
+            const href =
+              from < to ? `/licences?expiringFromDays=${from}&expiringToDays=${to}` : `/licences?expiringFromDays=0&expiringToDays=${to}`;
             return (
               <Link
                 key={d}
@@ -263,7 +260,7 @@ export default function LicencesPage() {
                   <td className="px-4 py-2 text-zinc-900 dark:text-zinc-50">{l.productName}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{l.company?.name ?? '—'}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
-                    {l.device ? `${l.device.name ?? ''} (${l.device.serialNo ?? ''})` : '—'}
+                    {l.device ? `${l.device.name ?? 'Device'} (${l.device.serialNo ?? '—'})` : '—'}
                   </td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{l.status}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
@@ -299,3 +296,11 @@ export default function LicencesPage() {
   );
 }
 
+export default function LicencesPage() {
+  // Next.js 16: useSearchParams mora da bude unutar Suspense boundary
+  return (
+    <Suspense>
+      <LicencesPageInner />
+    </Suspense>
+  );
+}
