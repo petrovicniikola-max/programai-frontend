@@ -13,6 +13,7 @@ interface Ticket {
   title: string;
   status: string;
   type: string;
+  createdAt: string;
   updatedAt: string;
   assigneeId: string | null;
   assignee: { id: string; email: string; displayName: string | null } | null;
@@ -45,6 +46,8 @@ export default function TicketsPage() {
   const [assigneeId, setAssigneeId] = useState<string>('');
   const [createdByUserId, setCreatedByUserId] = useState<string>('');
   const [companyId, setCompanyId] = useState<string>('');
+   // Filter: tickets created in last N days (empty = all)
+  const [createdInLastDays, setCreatedInLastDays] = useState<string>('');
   const [page, setPage] = useState(1);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
@@ -73,7 +76,7 @@ export default function TicketsPage() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['tickets', status, type, assigneeId, createdByUserId, companyId, page],
+    queryKey: ['tickets', status, type, assigneeId, createdByUserId, companyId, createdInLastDays, page],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status) params.set('status', status);
@@ -81,6 +84,14 @@ export default function TicketsPage() {
       if (assigneeId) params.set('assigneeId', assigneeId);
       if (createdByUserId) params.set('createdByUserId', createdByUserId);
       if (companyId) params.set('companyId', companyId);
+      if (createdInLastDays) {
+        const days = Number(createdInLastDays);
+        if (!Number.isNaN(days) && days > 0) {
+          const from = new Date();
+          from.setDate(from.getDate() - days);
+          params.set('createdAtFrom', from.toISOString());
+        }
+      }
       params.set('page', String(page));
       params.set('limit', '20');
       const res = await api.get<TicketsResponse>(`/tickets?${params.toString()}`);
@@ -193,6 +204,22 @@ export default function TicketsPage() {
             className="min-w-[12rem]"
           />
         </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-zinc-600 dark:text-zinc-400">Created</label>
+          <select
+            value={createdInLastDays}
+            onChange={(e) => {
+              setCreatedInLastDays(e.target.value);
+              setPage(1);
+            }}
+            className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+          >
+            <option value="">All time</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </div>
       </div>
       <div className="mt-4 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
         {error && (
@@ -215,7 +242,9 @@ export default function TicketsPage() {
                   <th className="px-4 py-2 font-medium">Company</th>
                   <th className="px-4 py-2 font-medium">Assignee</th>
                   <th className="px-4 py-2 font-medium">Created by</th>
+                  <th className="px-4 py-2 font-medium">Created</th>
                   <th className="px-4 py-2 font-medium">Updated</th>
+                  <th className="px-4 py-2 font-medium">Edit</th>
                 </tr>
               </thead>
               <tbody>
@@ -245,7 +274,18 @@ export default function TicketsPage() {
                       {userLabel(t.createdBy)}
                     </td>
                     <td className="px-4 py-2 text-zinc-500 dark:text-zinc-500">
+                      {new Date(t.createdAt).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-zinc-500 dark:text-zinc-500">
                       {new Date(t.updatedAt).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2">
+                      <Link
+                        href={`/tickets/${t.id}`}
+                        className="text-emerald-600 hover:underline dark:text-emerald-400"
+                      >
+                        Edit
+                      </Link>
                     </td>
                   </tr>
                 ))}

@@ -78,10 +78,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  if (!getToken()) {
-    return null;
-  }
-
+  // Ne proveravaj getToken() u render-u – na serveru nema localStorage, pa bi server
+  // renderovao null a klijent layout i došlo bi do hydration mismatch. Redirekciju
+  // radi samo useEffect iznad.
   const brandName = effectiveBranding.brandName?.trim() || 'CRM ESTUAR';
   const brandColour = effectiveBranding.primaryColour ?? undefined;
 

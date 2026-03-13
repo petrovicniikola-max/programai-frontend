@@ -2,9 +2,11 @@
 
 import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type Device, type Licence } from '@/lib/api';
 import { useToast } from '@/components/toast';
+import { SearchableSelect } from '@/components/searchable-select';
 
 interface TicketDetail {
   id: string;
@@ -49,29 +51,13 @@ interface Task {
   orderNo: number;
 }
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div className="flex gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
-      <span className="w-44 shrink-0 text-sm text-zinc-500 dark:text-zinc-400">
-        {label}
-      </span>
-      <span className="text-sm text-zinc-900 dark:text-zinc-100">{value ?? '—'}</span>
-    </div>
-  );
-}
-
 export default function TicketDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { showError } = useToast();
 
@@ -146,36 +132,56 @@ export default function TicketDetailPage({
     enabled: !!ticket,
   });
 
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies'],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; name: string }[]>('/companies');
+      return res.data ?? [];
+    },
+    enabled: !!ticket,
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['auth', 'users'],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; email: string; displayName: string | null }[]>('/auth/users');
+      return res.data ?? [];
+    },
+    enabled: !!ticket,
+  });
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ['contacts'],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; name: string; companyId?: string | null }[]>('/contacts');
+      return res.data ?? [];
+    },
+    enabled: !!ticket,
+  });
+
   const invalidateTicket = () => {
     queryClient.invalidateQueries({ queryKey: ['ticket', id] });
     queryClient.invalidateQueries({ queryKey: ['tickets'] });
   };
 
-  const patchStatus = useMutation({
-    mutationFn: (status: string) =>
-      api.patch(`/tickets/${id}/status`, { status }),
-    onSuccess: invalidateTicket,
-    onError: (e: unknown) =>
-      showError((e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed'),
-  });
-
-  const assignToMe = useMutation({
-    mutationFn: () => api.patch(`/tickets/${id}/assign-to-me`),
-    onSuccess: invalidateTicket,
-    onError: (e: unknown) =>
-      showError((e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed'),
-  });
-
-  const setCallTimeNow = useMutation({
-    mutationFn: () => api.patch(`/tickets/${id}/call-time/now`),
-    onSuccess: invalidateTicket,
-    onError: (e: unknown) =>
-      showError((e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed'),
-  });
-
-  const patchTicket = useMutation({
-    mutationFn: (body: { description?: string; callDurationMinutes?: number; callOccurredAt?: string }) =>
-      api.patch(`/tickets/${id}`, body),
+  const updateTicketMutation = useMutation({
+    mutationFn: (body: {
+      title?: string;
+      description?: string;
+      status?: string;
+      type?: string;
+      companyId?: string | null;
+      contactId?: string | null;
+      assigneeId?: string | null;
+      callOccurredAt?: string | null;
+      callDurationMinutes?: number | null;
+      reportedBy?: string | null;
+      putIAngazovanje?: string[] | null;
+      tokPrijave?: string | null;
+      zakljucak?: string | null;
+      potpisOvlascenogLica?: string | null;
+      ticketDate?: string | null;
+    }) => api.patch(`/tickets/${id}`, body),
     onSuccess: invalidateTicket,
     onError: (e: unknown) =>
       showError((e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed'),
@@ -232,35 +238,35 @@ export default function TicketDetailPage({
 
   if (isLoading) {
     return (
-      <div>
-        <Link href="/tickets" className="text-sm text-emerald-600 hover:underline dark:text-emerald-400">
-          ← Back to Tickets
-        </Link>
-        <p className="mt-4 text-zinc-500">Loading…</p>
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={() => router.push('/tickets')}
+          className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+        >
+          Nazad
+        </button>
+        <p className="text-zinc-500">Loading…</p>
       </div>
     );
   }
 
   if (error || !ticket) {
     return (
-      <div>
-        <Link href="/tickets" className="text-sm text-emerald-600 hover:underline dark:text-emerald-400">
-          ← Back to Tickets
-        </Link>
-        <p className="mt-4 text-red-600 dark:text-red-400">Failed to load ticket.</p>
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={() => router.push('/tickets')}
+          className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+        >
+          Nazad
+        </button>
+        <p className="text-red-600 dark:text-red-400">Failed to load ticket.</p>
       </div>
     );
   }
 
-  const isAssignedToMe = me?.id && ticket.assignee?.id === me.id;
   const canEdit = true;
-  const hasManualFormData =
-    ticket.reportedBy ||
-    (ticket.putIAngazovanje && ticket.putIAngazovanje.length > 0) ||
-    ticket.tokPrijave ||
-    ticket.zakljucak ||
-    ticket.potpisOvlascenogLica ||
-    ticket.ticketDate;
 
   const handlePrint = () => {
     window.print();
@@ -271,19 +277,6 @@ export default function TicketDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-        <Link href="/tickets" className="text-sm text-emerald-600 hover:underline dark:text-emerald-400">
-          ← Back to Tickets
-        </Link>
-        <button
-          type="button"
-          onClick={handlePrint}
-          className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-        >
-          Štampaj A4
-        </button>
-      </div>
-
       {/* Štampa samo u formatu forme – ista polja i redosled kao "Kreiraj ticket" */}
       <div
         id="ticket-print-area"
@@ -346,7 +339,7 @@ export default function TicketDetailPage({
               <div className="font-medium mb-1">Datum</div>
               <div className="border-b border-zinc-400">
                 {ticket.ticketDate
-                  ? new Date(ticket.ticketDate).toLocaleString()
+                  ? new Date(ticket.ticketDate).toLocaleDateString()
                   : '—'}
               </div>
             </div>
@@ -358,287 +351,385 @@ export default function TicketDetailPage({
         </div>
       </div>
 
-      {/* Prikaz na ekranu – cela stranica tiketa */}
-      <div className="print:hidden flex flex-wrap items-start justify-between gap-4">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-          {ticket.key} – {ticket.title}
-        </h1>
-      </div>
+      {/* Prikaz na ekranu – jedna forma kao Korisnici / Izmeni, sva polja editabilna */}
+      <div className="print:hidden space-y-6">
+        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Tiketi / Izmeni</h1>
 
-      <div className="print:hidden grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-            <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Description</h2>
-            {canEdit ? (
-              <TicketDescriptionForm
-                initial={ticket.description ?? ''}
-                onSave={(v) => patchTicket.mutate({ description: v || undefined })}
-                saving={patchTicket.isPending}
-              />
-            ) : (
-              <p className="text-sm text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap">
-                {ticket.description || '—'}
-              </p>
-            )}
-          </div>
+        <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
+          <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Podaci tiketa</h2>
+          <TicketEditForm
+            ticket={ticket}
+            companies={companies}
+            users={users}
+            contacts={contacts}
+            onSave={updateTicketMutation.mutate}
+            saving={updateTicketMutation.isPending}
+            onBack={() => router.push('/tickets')}
+            onPrint={handlePrint}
+          />
+        </section>
 
+        <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+          <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Komentari</h2>
           <CommentsSection
             comments={comments}
             onAdd={(body) => addComment.mutate(body)}
             adding={addComment.isPending}
           />
+        </section>
 
+        <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+          <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Zadaci</h2>
           <TasksSection
             tasks={tasks}
             onAdd={(title) => addTask.mutate(title)}
             onToggle={(taskId, isDone) => toggleTask.mutate({ taskId, isDone })}
             adding={addTask.isPending}
           />
-        </div>
+        </section>
 
-        <div className="space-y-6">
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-            <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Details</h2>
-            <div className="space-y-1">
-              {canEdit && (
-                <>
-                  <div className="flex items-center gap-2 py-2 print:hidden">
-                    <label className="w-28 text-sm text-zinc-500">Status</label>
-                    <select
-                      value={ticket.status}
-                      onChange={(e) => patchStatus.mutate(e.target.value)}
-                      disabled={patchStatus.isPending}
-                      className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
-                    >
-                      <option value="OPEN">OPEN</option>
-                      <option value="IN_PROGRESS">IN_PROGRESS</option>
-                      <option value="DONE">DONE</option>
-                    </select>
-                  </div>
-                  <div className="hidden print:flex print:gap-3 print:py-2 print:border-b print:border-zinc-300">
-                    <span className="w-28 shrink-0 text-sm">Status</span>
-                    <span className="text-sm">{ticket.status}</span>
-                  </div>
-                  {!isAssignedToMe && (
-                    <div className="py-2 print:hidden">
-                      <button
-                        type="button"
-                        onClick={() => assignToMe.mutate()}
-                        disabled={assignToMe.isPending}
-                        className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        Assign to me
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-              <DetailRow label="Type" value={ticket.type} />
-              <DetailRow
-                label="Created by"
-                value={
-                  ticket.createdBy?.displayName ||
-                  ticket.createdBy?.email ||
-                  (ticket.createdByUserId ? '(korisnik)' : null)
-                }
-              />
-              <DetailRow
-                label="Assignee"
-                value={ticket.assignee?.displayName || ticket.assignee?.email}
-              />
-              <DetailRow label="Call time" value={ticket.callOccurredAt ? new Date(ticket.callOccurredAt).toLocaleString() : null} />
-              {canEdit && (
-                <>
-                  <div className="flex items-center gap-2 py-2 print:hidden">
-                    <button
-                      type="button"
-                      onClick={() => setCallTimeNow.mutate()}
-                      disabled={setCallTimeNow.isPending}
-                      className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600"
-                    >
-                      Set NOW
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 py-2 print:hidden">
-                    <label className="w-28 text-sm text-zinc-500">Duration (min)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      defaultValue={ticket.callDurationMinutes ?? ''}
-                      onBlur={(e) => {
-                        const v = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                        if (v !== undefined && !Number.isNaN(v)) patchTicket.mutate({ callDurationMinutes: v });
-                      }}
-                      className="w-20 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 py-2 print:hidden">
-                    <label className="w-28 text-sm text-zinc-500">Call at</label>
-                    <input
-                      type="datetime-local"
-                      defaultValue={
-                        ticket.callOccurredAt
-                          ? new Date(ticket.callOccurredAt).toISOString().slice(0, 16)
-                          : ''
-                      }
-                      onBlur={(e) => {
-                        const v = e.target.value;
-                        if (v) patchTicket.mutate({ callOccurredAt: new Date(v).toISOString() });
-                      }}
-                      className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-            <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Contact / Company</h2>
-            {(ticket.reportedBy || ticket.contactName || ticket.contact || ticket.company) && (
-              <div className="space-y-1">
-                {ticket.reportedBy && (
-                  <DetailRow label="Ko je prijavio" value={ticket.reportedBy} />
-                )}
-                <DetailRow label="Contact" value={ticket.contactName ?? ticket.contact?.name} />
-                <DetailRow label="Phone" value={ticket.phoneRaw} />
-                <DetailRow label="Company" value={ticket.company?.name} />
-                <DetailRow label="PIB" value={ticket.company?.pib} />
-                <DetailRow label="MB" value={ticket.company?.mb} />
-              </div>
-            )}
-            {!ticket.reportedBy && !ticket.contactName && !ticket.contact && !ticket.company && (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">—</p>
-            )}
-          </div>
-
-          {hasManualFormData && (
-            <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-              <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Detalji prijave</h2>
-              <div className="space-y-1">
-                {ticket.putIAngazovanje && ticket.putIAngazovanje.length > 0 && (
-                  <div className="flex gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
-                    <span className="w-44 shrink-0 text-sm text-zinc-500 dark:text-zinc-400">
-                      Put i angažovanje
-                    </span>
-                    <ul className="list-disc pl-4 text-sm text-zinc-900 dark:text-zinc-100">
-                      {ticket.putIAngazovanje.map((line, i) => (
-                        <li key={i}>{line}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <DetailRow label="Tok prijave" value={ticket.tokPrijave} />
-                <DetailRow label="Zaključak" value={ticket.zakljucak} />
-                <DetailRow label="Potpis ovlašćenog lica" value={ticket.potpisOvlascenogLica} />
-                <DetailRow
-                  label="Datum"
-                  value={ticket.ticketDate ? new Date(ticket.ticketDate).toLocaleString() : null}
-                />
-              </div>
-            </div>
-          )}
-
-          {canEdit && (
-            <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-              <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Tags</h2>
-              <div className="flex flex-wrap gap-2 mb-2 print:flex">
-                {ticket.tags.map((t) => (
-                  <span
-                    key={t.id}
-                    className="inline-flex items-center rounded bg-zinc-200 px-2 py-0.5 text-sm dark:bg-zinc-700"
+        {canEdit && (
+          <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+            <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Tagovi</h2>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {ticket.tags.map((t) => (
+                <span
+                  key={t.id}
+                  className="inline-flex items-center rounded bg-zinc-200 px-2 py-0.5 text-sm dark:bg-zinc-700"
+                >
+                  {t.name}
+                  <button
+                    type="button"
+                    onClick={() => unassignTags.mutate([t.id])}
+                    disabled={unassignTags.isPending}
+                    className="ml-1 text-zinc-500 hover:text-red-600"
                   >
-                    {t.name}
-                    <button
-                      type="button"
-                      onClick={() => unassignTags.mutate([t.id])}
-                      disabled={unassignTags.isPending}
-                      className="ml-1 text-zinc-500 hover:text-red-600 print:hidden"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <select
-                className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100 print:hidden"
-                value=""
-                onChange={(e) => {
-                  const tagId = e.target.value;
-                  if (tagId && !ticket.tags.some((t) => t.id === tagId))
-                    assignTags.mutate([...ticket.tags.map((t) => t.id), tagId]);
-                  e.target.value = '';
-                }}
-              >
-                <option value="">Add tag…</option>
-                {allTags
-                  .filter((tag) => !ticket.tags.some((t) => t.id === tag.id))
-                  .map((tag) => (
-                    <option key={tag.id} value={tag.id}>
-                      {tag.name}
-                    </option>
-                  ))}
-              </select>
+                    ×
+                  </button>
+                </span>
+              ))}
             </div>
+            <select
+              className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+              value=""
+              onChange={(e) => {
+                const tagId = e.target.value;
+                if (tagId && !ticket.tags.some((t) => t.id === tagId))
+                  assignTags.mutate([...ticket.tags.map((t) => t.id), tagId]);
+                e.target.value = '';
+              }}
+            >
+              <option value="">Dodaj tag…</option>
+              {allTags
+                .filter((tag) => !ticket.tags.some((t) => t.id === tag.id))
+                .map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    {tag.name}
+                  </option>
+                ))}
+            </select>
+          </section>
+        )}
+
+        <section className="rounded-lg border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
+          <h2 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">Uređaji (kompanija)</h2>
+          {relatedDevices.length === 0 ? (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Nema uređaja.</p>
+          ) : (
+            <ul className="space-y-1">
+              {relatedDevices.map((d) => (
+                <li key={d.id}>
+                  <Link href={`/devices/${d.id}`} className="text-emerald-600 hover:underline dark:text-emerald-400">
+                    {d.name || d.model || d.serialNo || 'Uređaj'}
+                  </Link>
+                  {d.serialNo && <span className="ml-2 text-xs text-zinc-500">({d.serialNo})</span>}
+                </li>
+              ))}
+            </ul>
           )}
+        </section>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
-            <h2 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Devices for this company
-            </h2>
-            {relatedDevices.length === 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">No devices found.</p>
-            )}
-            {relatedDevices.length > 0 && (
-              <ul className="space-y-1">
-                {relatedDevices.map((d) => (
-                  <li key={d.id}>
-                    <Link
-                      href={`/devices/${d.id}`}
-                      className="text-sm text-emerald-600 hover:underline dark:text-emerald-400"
-                    >
-                      {d.name || d.model || d.serialNo || 'Device'}
-                    </Link>
-                    {d.serialNo && (
-                      <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
-                        ({d.serialNo})
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
-            <h2 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Licences for this company
-            </h2>
-            {relatedLicences.length === 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">No licences found.</p>
-            )}
-            {relatedLicences.length > 0 && (
-              <ul className="space-y-1">
-                {relatedLicences.map((l) => (
-                  <li key={l.id}>
-                    <Link
-                      href={`/licences/${l.id}`}
-                      className="text-sm text-emerald-600 hover:underline dark:text-emerald-400"
-                    >
-                      {l.productName}
-                    </Link>
-                    <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
-                      {new Date(l.validTo).toLocaleDateString()}
-                      {l.device?.serialNo ? ` · ${l.device.serialNo}` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
+        <section className="rounded-lg border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
+          <h2 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">Licence (kompanija)</h2>
+          {relatedLicences.length === 0 ? (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Nema licenci.</p>
+          ) : (
+            <ul className="space-y-1">
+              {relatedLicences.map((l) => (
+                <li key={l.id}>
+                  <Link href={`/licences/${l.id}`} className="text-emerald-600 hover:underline dark:text-emerald-400">
+                    {l.productName}
+                  </Link>
+                  <span className="ml-2 text-xs text-zinc-500">
+                    {new Date(l.validTo).toLocaleDateString()}
+                    {l.device?.serialNo ? ` · ${l.device.serialNo}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </div>
+  );
+}
+
+function userLabel(u: { displayName: string | null; email: string } | null) {
+  if (!u) return '—';
+  return u.displayName || u.email;
+}
+
+function TicketEditForm({
+  ticket,
+  companies,
+  users,
+  contacts,
+  onSave,
+  saving,
+  onBack,
+  onPrint,
+}: {
+  ticket: TicketDetail;
+  companies: { id: string; name: string }[];
+  users: { id: string; email: string; displayName: string | null }[];
+  contacts: { id: string; name: string; companyId?: string | null }[];
+  onSave: (body: Record<string, unknown>) => void;
+  saving: boolean;
+  onBack: () => void;
+  onPrint: () => void;
+}) {
+  const [companyId, setCompanyId] = useState(ticket.company?.id ?? '');
+  const [contactId, setContactId] = useState(ticket.contact?.id ?? '');
+  const [assigneeId, setAssigneeId] = useState(ticket.assignee?.id ?? '');
+
+  useEffect(() => {
+    setCompanyId(ticket.company?.id ?? '');
+    setContactId(ticket.contact?.id ?? '');
+    setAssigneeId(ticket.assignee?.id ?? '');
+  }, [ticket.id, ticket.company?.id, ticket.contact?.id, ticket.assignee?.id]);
+
+  const inputClass =
+    'w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100';
+  const labelClass = 'mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300';
+
+  const companyOptions = [{ id: '', label: '—' }, ...companies.map((c) => ({ id: c.id, label: c.name }))];
+  const contactOptions = [
+    { id: '', label: '—' },
+    ...contacts.map((c) => ({ id: c.id, label: c.name })),
+  ];
+  const assigneeOptions = [
+    { id: '', label: '—' },
+    { id: 'unassigned', label: 'Nedodeljen' },
+    ...users.map((u) => ({ id: u.id, label: userLabel(u) })),
+  ];
+
+  const isQuickTicket = ticket.key?.startsWith('Q-') ?? false;
+  const isManualTicket = ticket.key?.startsWith('T-') ?? false;
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const fd = new FormData(form);
+        const putRaw = (fd.get('putIAngazovanje') as string) || '';
+        const putRows = putRaw.split('\n').map((s) => s.trim()).filter(Boolean);
+        onSave({
+          title: (fd.get('title') as string)?.trim() || undefined,
+          description: (fd.get('description') as string)?.trim() || undefined,
+          status: (fd.get('status') as string) || undefined,
+          type: (fd.get('type') as string) || undefined,
+          companyId: companyId || null,
+          contactId: contactId || null,
+          assigneeId: assigneeId === 'unassigned' ? null : assigneeId || null,
+          callOccurredAt: (fd.get('callOccurredAt') as string) ? new Date((fd.get('callOccurredAt') as string)).toISOString() : null,
+          callDurationMinutes: (fd.get('callDurationMinutes') as string) ? parseInt(String(fd.get('callDurationMinutes')), 10) : null,
+          reportedBy: (fd.get('reportedBy') as string)?.trim() || null,
+          putIAngazovanje: putRows.length ? putRows : null,
+          tokPrijave: (fd.get('tokPrijave') as string)?.trim() || null,
+          zakljucak: (fd.get('zakljucak') as string)?.trim() || null,
+          potpisOvlascenogLica: (fd.get('potpisOvlascenogLica') as string)?.trim() || null,
+          ticketDate: (fd.get('ticketDate') as string)?.trim()
+            ? new Date((fd.get('ticketDate') as string).trim() + 'T00:00:00').toISOString()
+            : null,
+        });
+      }}
+    >
+      <div className="flex flex-wrap gap-2 mb-4 justify-end">
+        <button
+          type="button"
+          onClick={onPrint}
+          className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200"
+        >
+          Štampaj A4
+        </button>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Key</label>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{ticket.key}</p>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Naziv / Title</label>
+          <input type="text" name="title" defaultValue={ticket.title} className={inputClass} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Opis / Description</label>
+          <textarea name="description" rows={4} defaultValue={ticket.description ?? ''} className={inputClass} />
+        </div>
+        {!isManualTicket && (
+          <>
+            <div>
+              <label className={labelClass}>Status</label>
+              <select name="status" defaultValue={ticket.status} className={inputClass}>
+                <option value="OPEN">OPEN</option>
+                <option value="IN_PROGRESS">IN_PROGRESS</option>
+                <option value="DONE">DONE</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Tip</label>
+              <select name="type" defaultValue={ticket.type} className={inputClass}>
+                <option value="CALL">CALL</option>
+                <option value="SUPPORT">SUPPORT</option>
+                <option value="SALES">SALES</option>
+                <option value="FIELD">FIELD</option>
+                <option value="OTHER">OTHER</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Kompanija</label>
+              <SearchableSelect
+                value={companyId}
+                onChange={setCompanyId}
+                options={companyOptions}
+                placeholder="—"
+                searchPlaceholder="Pretraži..."
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Kontakt</label>
+              <SearchableSelect
+                value={contactId}
+                onChange={setContactId}
+                options={contactOptions}
+                placeholder="—"
+                searchPlaceholder="Pretraži..."
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Dodeljen (Assignee)</label>
+              <SearchableSelect
+                value={assigneeId}
+                onChange={setAssigneeId}
+                options={assigneeOptions}
+                placeholder="—"
+                searchPlaceholder="Pretraži..."
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Vreme poziva (Call at)</label>
+              <input
+                type="datetime-local"
+                name="callOccurredAt"
+                defaultValue={
+                  ticket.callOccurredAt ? new Date(ticket.callOccurredAt).toISOString().slice(0, 16) : ''
+                }
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Trajanje (min)</label>
+              <input
+                type="number"
+                name="callDurationMinutes"
+                min={0}
+                defaultValue={ticket.callDurationMinutes ?? ''}
+                className={inputClass}
+              />
+            </div>
+          </>
+        )}
+        {!isQuickTicket && (
+          <>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Ko je prijavio (reportedBy)</label>
+              <input
+                type="text"
+                name="reportedBy"
+                defaultValue={ticket.reportedBy ?? ''}
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Put i angažovanje (jedan red po liniji)</label>
+              <textarea
+                name="putIAngazovanje"
+                rows={3}
+                defaultValue={(ticket.putIAngazovanje ?? []).join('\n')}
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Tok prijave</label>
+              <textarea
+                name="tokPrijave"
+                rows={2}
+                defaultValue={ticket.tokPrijave ?? ''}
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Zaključak</label>
+              <textarea
+                name="zakljucak"
+                rows={2}
+                defaultValue={ticket.zakljucak ?? ''}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Potpis ovlašćenog lica</label>
+              <input
+                type="text"
+                name="potpisOvlascenogLica"
+                defaultValue={ticket.potpisOvlascenogLica ?? ''}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Datum</label>
+              <input
+                type="date"
+                name="ticketDate"
+                defaultValue={
+                  ticket.ticketDate ? new Date(ticket.ticketDate).toISOString().slice(0, 10) : ''
+                }
+                className={inputClass}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+        >
+          {saving ? 'Čuvanje…' : 'Sačuvaj'}
+        </button>
+        <button type="button" onClick={onBack} className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200">
+          Nazad
+        </button>
+      </div>
+    </form>
   );
 }
 
