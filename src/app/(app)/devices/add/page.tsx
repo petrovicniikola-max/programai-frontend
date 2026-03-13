@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -11,7 +11,7 @@ const SUF_OPTIONS = ['produkciono', 'test'] as const;
 const EFAKTURA_OPTIONS = ['produkciono', 'test'] as const;
 const ACCOUNT_SYNC_OPTIONS = ['isključena', 'uključena'] as const;
 
-export default function AddDevicePage() {
+function AddDevicePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -338,5 +338,14 @@ export default function AddDevicePage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function AddDevicePage() {
+  // Next.js 16 zahteva da useSearchParams bude unutar <Suspense>
+  return (
+    <Suspense>
+      <AddDevicePageInner />
+    </Suspense>
   );
 }

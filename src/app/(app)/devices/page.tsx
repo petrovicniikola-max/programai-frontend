@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -15,7 +15,7 @@ const baseURL =
     ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
     : 'http://localhost:3001';
 
-export default function DevicesPage() {
+function DevicesPageInner() {
   const searchParams = useSearchParams();
   const companyIdFromUrl = searchParams.get('companyId') ?? '';
   const [search, setSearch] = useState('');
@@ -181,3 +181,11 @@ export default function DevicesPage() {
   );
 }
 
+export default function DevicesPage() {
+  // Next.js 16: useSearchParams mora da bude unutar Suspense boundary
+  return (
+    <Suspense>
+      <DevicesPageInner />
+    </Suspense>
+  );
+}
