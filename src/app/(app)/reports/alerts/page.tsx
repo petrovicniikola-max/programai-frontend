@@ -12,11 +12,13 @@ import { DEVICES_ENDPOINT, LICENCES_ENDPOINT } from '@/lib/endpoints';
 export interface ReportEmailConfigItem {
   email: string;
   schedule: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  reportType: 'tickets' | 'devices' | 'licences';
+  reportType: 'tickets' | 'devices' | 'licences' | 'sales';
   companyId?: string;
   deviceIds?: string[];
   ticketStatuses?: ('OPEN' | 'IN_PROGRESS' | 'DONE')[];
   assigneeId?: string;
+  salesCreatedByUserId?: string;
+  salesContactMethod?: 'PHONE' | 'EMAIL';
   scheduleTime?: string;
   scheduleDayOfWeek?: number;
   scheduleMonthOption?: '1st_previous' | 'last_current';
@@ -53,7 +55,7 @@ const baseURL =
     ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
     : 'http://localhost:3001';
 
-type ReportTab = 'tickets' | 'devices' | 'licences';
+type ReportTab = 'tickets' | 'devices' | 'licences' | 'sales';
 
 const DAYS_BACK_OPTIONS = [7, 10, 14, 30];
 
@@ -67,6 +69,7 @@ const REPORT_TYPE_OPTIONS = [
   { id: 'tickets' as const, label: 'Tiketi' },
   { id: 'devices' as const, label: 'Uređaji' },
   { id: 'licences' as const, label: 'Licence' },
+  { id: 'sales' as const, label: 'Prodaja' },
 ];
 const TICKET_STATUS_OPTIONS: { id: 'OPEN' | 'IN_PROGRESS' | 'DONE'; label: string }[] = [
   { id: 'OPEN', label: 'Otvoreni' },
@@ -113,6 +116,12 @@ export default function ReportsAlertsPage() {
   const [lStatus, setLStatus] = useState('');
   const [lCompanyId, setLCompanyId] = useState('');
   const [lExpiringInDays, setLExpiringInDays] = useState<number | null>(null);
+
+  // Sales (Prodaja) export filters
+  const [sDateFrom, setSDateFrom] = useState('');
+  const [sDateTo, setSDateTo] = useState('');
+  const [sCreatedByUserId, setSCreatedByUserId] = useState('');
+  const [sContactMethod, setSContactMethod] = useState('');
 
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ['me'],
@@ -201,6 +210,8 @@ export default function ReportsAlertsPage() {
         companyId: c.companyId?.trim() || undefined,
         ticketStatuses: c.ticketStatuses?.length ? c.ticketStatuses : undefined,
         assigneeId: c.assigneeId?.trim() || undefined,
+        salesCreatedByUserId: c.salesCreatedByUserId?.trim() || undefined,
+        salesContactMethod: c.salesContactMethod || undefined,
         scheduleTime: c.scheduleTime?.trim() || undefined,
         scheduleDayOfWeek: c.scheduleDayOfWeek,
         scheduleMonthOption: c.scheduleMonthOption,
@@ -233,6 +244,15 @@ export default function ReportsAlertsPage() {
     if (tCompanyId) params.set('companyId', tCompanyId);
     params.set('page', '1');
     params.set('limit', '100');
+    return params;
+  };
+
+  const salesExportParams = () => {
+    const params = new URLSearchParams();
+    if (sDateFrom) params.set('createdAtFrom', new Date(sDateFrom + 'T00:00:00').toISOString());
+    if (sDateTo) params.set('createdAtTo', new Date(sDateTo + 'T23:59:59.999').toISOString());
+    if (sCreatedByUserId) params.set('createdByUserId', sCreatedByUserId);
+    if (sContactMethod) params.set('contactMethod', sContactMethod);
     return params;
   };
 
@@ -297,6 +317,19 @@ export default function ReportsAlertsPage() {
         const a = document.createElement('a');
         a.href = url;
         a.download = `tickets_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else if (activeTab === 'sales') {
+        const q = salesExportParams().toString();
+        const res = await fetch(`${baseURL}/reports/sales/export${q ? `?${q}` : ''}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error(res.statusText);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `prodaja_${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
         URL.revokeObjectURL(url);
       } else if (activeTab === 'devices') {
@@ -471,6 +504,16 @@ export default function ReportsAlertsPage() {
                                   patch.companyId = undefined;
                                   patch.deviceIds = undefined;
                                 }
+                                if (reportType === 'sales') {
+                                  patch.companyId = undefined;
+                                  patch.deviceIds = undefined;
+                                  patch.ticketStatuses = undefined;
+                                  patch.assigneeId = undefined;
+                                }
+                                if (reportType !== 'sales') {
+                                  patch.salesCreatedByUserId = undefined;
+                                  patch.salesContactMethod = undefined;
+                                }
                                 updateConfigRow(index, patch);
                               }}
                               className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
@@ -508,14 +551,42 @@ export default function ReportsAlertsPage() {
                                   value={row.assigneeId ?? ''}
                                   onChange={(id) => updateConfigRow(index, { assigneeId: id || undefined })}
                                   options={[
-                                    { id: '', label: 'Svi useri' },
-                                    { id: 'unassigned', label: 'Nedodeljeni' },
+                                    { id: '', label: 'Svi korisnici' },
+                                    { id: 'unassigned', label: 'Bez kreatora' },
                                     ...(users ?? []).map((u) => ({ id: u.id, label: userLabel(u) })),
                                   ]}
-                                  placeholder="Dodeljen…"
+                                  placeholder="Kreirao…"
                                   searchPlaceholder="Pretraži..."
                                   className="min-w-[140px]"
                                 />
+                              </div>
+                            )}
+                            {row.reportType === 'sales' && (
+                              <div className="flex flex-col gap-2">
+                                <SearchableSelect
+                                  value={row.salesCreatedByUserId ?? ''}
+                                  onChange={(id) => updateConfigRow(index, { salesCreatedByUserId: id || undefined })}
+                                  options={[
+                                    { id: '', label: 'Svi korisnici' },
+                                    ...(users ?? []).map((u) => ({ id: u.id, label: userLabel(u) })),
+                                  ]}
+                                  placeholder="Kreirao…"
+                                  searchPlaceholder="Pretraži..."
+                                  className="min-w-[140px]"
+                                />
+                                <select
+                                  value={row.salesContactMethod ?? ''}
+                                  onChange={(e) =>
+                                    updateConfigRow(index, {
+                                      salesContactMethod: (e.target.value as 'PHONE' | 'EMAIL' | '') || undefined,
+                                    })
+                                  }
+                                  className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                                >
+                                  <option value="">Svi načini</option>
+                                  <option value="PHONE">Telefonski poziv</option>
+                                  <option value="EMAIL">Mail</option>
+                                </select>
                               </div>
                             )}
                             {(row.reportType === 'devices' || row.reportType === 'licences') && (
@@ -718,7 +789,7 @@ export default function ReportsAlertsPage() {
             {/* Tabovi za Export CSV */}
             <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-700">
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Export CSV:</span>
-              {(['tickets', 'devices', 'licences'] as const).map((tab) => (
+              {(['tickets', 'sales', 'devices', 'licences'] as const).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -727,7 +798,7 @@ export default function ReportsAlertsPage() {
                     activeTab === tab ? 'bg-zinc-200 dark:bg-zinc-600' : 'border border-zinc-300 dark:border-zinc-600'
                   }`}
                 >
-                  {tab === 'tickets' ? 'Tiketi' : tab === 'devices' ? 'Uređaji' : 'Licence'}
+                  {tab === 'tickets' ? 'Tiketi' : tab === 'sales' ? 'Prodaja' : tab === 'devices' ? 'Uređaji' : 'Licence'}
                 </button>
               ))}
             </div>
@@ -744,6 +815,55 @@ export default function ReportsAlertsPage() {
                 Export CSV
               </button>
             </div>
+
+            {activeTab === 'sales' && (
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">Od</label>
+                  <input
+                    type="date"
+                    value={sDateFrom}
+                    onChange={(e) => setSDateFrom(e.target.value)}
+                    className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">Do</label>
+                  <input
+                    type="date"
+                    value={sDateTo}
+                    onChange={(e) => setSDateTo(e.target.value)}
+                    className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">Kreirao</label>
+                  <SearchableSelect
+                    value={sCreatedByUserId}
+                    onChange={setSCreatedByUserId}
+                    options={[
+                      { id: '', label: 'Svi korisnici' },
+                      ...(users ?? []).map((u) => ({ id: u.id, label: userLabel(u) })),
+                    ]}
+                    placeholder="Svi"
+                    searchPlaceholder="Pretraži..."
+                    className="min-w-[10rem]"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">Način kontakta</label>
+                  <select
+                    value={sContactMethod}
+                    onChange={(e) => setSContactMethod(e.target.value)}
+                    className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                  >
+                    <option value="">Svi</option>
+                    <option value="PHONE">Telefonski poziv</option>
+                    <option value="EMAIL">Mail</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             {activeTab === 'tickets' && (
               <div className="mt-4 flex flex-wrap items-center gap-4">

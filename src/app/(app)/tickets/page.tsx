@@ -20,6 +20,8 @@ interface Ticket {
   createdByUserId: string | null;
   createdBy: { id: string; email: string; displayName: string | null } | null;
   company: { id: string; name: string } | null;
+  contactMethod?: string | null;
+  contactsContactedCount?: number | null;
 }
 
 interface TenantUser {
@@ -240,6 +242,8 @@ export default function TicketsPage() {
                   <th className="px-4 py-2 font-medium">Status</th>
                   <th className="px-4 py-2 font-medium">Type</th>
                   <th className="px-4 py-2 font-medium">Company</th>
+                  <th className="px-4 py-2 font-medium">Način kontakta</th>
+                  <th className="px-4 py-2 font-medium">Broj kontakt.</th>
                   <th className="px-4 py-2 font-medium">Assignee</th>
                   <th className="px-4 py-2 font-medium">Created by</th>
                   <th className="px-4 py-2 font-medium">Created</th>
@@ -266,6 +270,12 @@ export default function TicketsPage() {
                     <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{t.type}</td>
                     <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
                       {t.company?.name ?? '—'}
+                    </td>
+                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
+                      {t.contactMethod === 'PHONE' ? 'Telefonski poziv' : t.contactMethod === 'EMAIL' ? 'Mail' : '—'}
+                    </td>
+                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
+                      {t.contactsContactedCount != null ? String(t.contactsContactedCount) : '—'}
                     </td>
                     <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
                       {userLabel(t.assignee)}

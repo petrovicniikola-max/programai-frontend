@@ -19,6 +19,8 @@ interface TicketDetail {
   contactName: string | null;
   callOccurredAt: string | null;
   callDurationMinutes: number | null;
+  contactMethod: string | null;
+  contactsContactedCount: number | null;
   createdAt: string;
   updatedAt: string;
   createdByUserId?: string | null;
@@ -175,6 +177,8 @@ export default function TicketDetailPage({
       assigneeId?: string | null;
       callOccurredAt?: string | null;
       callDurationMinutes?: number | null;
+      contactMethod?: string | null;
+      contactsContactedCount?: number | null;
       reportedBy?: string | null;
       putIAngazovanje?: string[] | null;
       tokPrijave?: string | null;
@@ -545,6 +549,10 @@ function TicketEditForm({
           assigneeId: assigneeId === 'unassigned' ? null : assigneeId || null,
           callOccurredAt: (fd.get('callOccurredAt') as string) ? new Date((fd.get('callOccurredAt') as string)).toISOString() : null,
           callDurationMinutes: (fd.get('callDurationMinutes') as string) ? parseInt(String(fd.get('callDurationMinutes')), 10) : null,
+          contactMethod: ((v) => (v === 'PHONE' || v === 'EMAIL' ? v : null))((fd.get('contactMethod') as string) || ''),
+          contactsContactedCount: (fd.get('contactsContactedCount') as string)?.trim()
+            ? parseInt(String(fd.get('contactsContactedCount')), 10)
+            : null,
           reportedBy: (fd.get('reportedBy') as string)?.trim() || null,
           putIAngazovanje: putRows.length ? putRows : null,
           tokPrijave: (fd.get('tokPrijave') as string)?.trim() || null,
@@ -650,6 +658,28 @@ function TicketEditForm({
                 name="callDurationMinutes"
                 min={0}
                 defaultValue={ticket.callDurationMinutes ?? ''}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Način kontakta</label>
+              <select
+                name="contactMethod"
+                defaultValue={ticket.contactMethod ?? ''}
+                className={inputClass}
+              >
+                <option value="">—</option>
+                <option value="PHONE">Telefonski poziv</option>
+                <option value="EMAIL">Mail</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Broj kontaktiranih korisnika</label>
+              <input
+                type="number"
+                name="contactsContactedCount"
+                min={0}
+                defaultValue={ticket.contactsContactedCount ?? ''}
                 className={inputClass}
               />
             </div>

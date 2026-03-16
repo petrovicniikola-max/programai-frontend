@@ -7,11 +7,13 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type User, getPublicBranding, type PublicBranding } from '@/lib/api';
 import { getToken, clearToken, isImpersonating, stopImpersonation } from '@/lib/auth';
 import { QuickCallModal } from './quick-call-modal';
+import { OutgoingCallModal } from './outgoing-call-modal';
 import { ThemeToggle } from './theme-toggle';
 
 const baseNav = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/tickets', label: 'Tickets' },
+  { href: '/sales', label: 'Prodaja' },
   { href: '/clients', label: 'Korisnici' },
   { href: '/devices', label: 'Devices' },
   { href: '/licences', label: 'Licences' },
@@ -26,6 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [quickCallOpen, setQuickCallOpen] = useState(false);
+  const [outgoingCallOpen, setOutgoingCallOpen] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -111,7 +114,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               key={href}
               href={href}
               className={`block rounded px-3 py-2 text-sm font-medium ${
-                pathname === href || (href !== '/reports' ? false : pathname.startsWith('/reports'))
+                pathname === href ||
+                (href === '/reports' && pathname.startsWith('/reports')) ||
+                (href === '/sales' && pathname.startsWith('/sales'))
                   ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-50'
                   : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50'
               }`}
@@ -183,6 +188,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               Quick Call
             </button>
+            <button
+              type="button"
+              onClick={() => setOutgoingCallOpen(true)}
+              className="rounded border border-emerald-600 px-3 py-1.5 text-sm font-medium text-emerald-600 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+            >
+              Outgoing Call
+            </button>
             <span className="text-sm text-zinc-700 dark:text-zinc-300">
               {userLoading ? '…' : user ? (user.displayName || user.email) : '—'}
             </span>
@@ -191,6 +203,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 p-4">{children}</main>
       </div>
       <QuickCallModal open={quickCallOpen} onClose={() => setQuickCallOpen(false)} />
+      <OutgoingCallModal open={outgoingCallOpen} onClose={() => setOutgoingCallOpen(false)} />
     </div>
   );
 }
