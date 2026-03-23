@@ -29,6 +29,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [quickCallOpen, setQuickCallOpen] = useState(false);
   const [outgoingCallOpen, setOutgoingCallOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const token = getToken();
@@ -196,7 +201,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Outgoing Call
             </button>
             <span className="text-sm text-zinc-700 dark:text-zinc-300">
-              {userLoading ? '…' : user ? (user.displayName || user.email) : '—'}
+              {mounted ? (userLoading ? '…' : user ? (user.displayName || user.email) : '—') : '—'}
             </span>
           </div>
         </header>
