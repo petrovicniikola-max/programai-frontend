@@ -4,7 +4,6 @@ import { useRef, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { getToken } from '@/lib/auth';
 
 interface Ticket {
   id: string;
@@ -48,6 +47,24 @@ interface SalesDirectoryRow {
   updatedAt: string;
 }
 
+type EditableDirectoryField =
+  | 'mb'
+  | 'pib'
+  | 'establishedAt'
+  | 'companyName'
+  | 'city'
+  | 'postalCode'
+  | 'address'
+  | 'phone'
+  | 'legalForm'
+  | 'activityCode'
+  | 'activityName'
+  | 'aprStatus'
+  | 'email'
+  | 'representative'
+  | 'description'
+  | 'sizeClass';
+
 interface SalesDirectoryResponse {
   items: SalesDirectoryRow[];
   total: number;
@@ -73,7 +90,7 @@ function endOfDay(dateStr: string): string {
   return new Date(dateStr + 'T23:59:59.999').toISOString();
 }
 
-const DIRECTORY_COLUMNS: { key: keyof SalesDirectoryRow; label: string }[] = [
+const DIRECTORY_COLUMNS: { key: EditableDirectoryField; label: string }[] = [
   { key: 'mb', label: 'MB' },
   { key: 'pib', label: 'PIB' },
   { key: 'establishedAt', label: 'Datum osnivanja' },
@@ -91,6 +108,25 @@ const DIRECTORY_COLUMNS: { key: keyof SalesDirectoryRow; label: string }[] = [
   { key: 'description', label: 'Opis' },
   { key: 'sizeClass', label: 'Polu/mali' },
 ];
+
+const EMPTY_MANUAL_ROW: Record<EditableDirectoryField, string> = {
+  mb: '',
+  pib: '',
+  establishedAt: '',
+  companyName: '',
+  city: '',
+  postalCode: '',
+  address: '',
+  phone: '',
+  legalForm: '',
+  activityCode: '',
+  activityName: '',
+  aprStatus: '',
+  email: '',
+  representative: '',
+  description: '',
+  sizeClass: '',
+};
 
 export default function SalesPage() {
   const queryClient = useQueryClient();
@@ -112,6 +148,9 @@ export default function SalesPage() {
   const [directoryPage, setDirectoryPage] = useState(1);
   const [directoryFilterField, setDirectoryFilterField] = useState('all');
   const [directoryFilterValue, setDirectoryFilterValue] = useState('');
+  const [manualRow, setManualRow] = useState<Record<EditableDirectoryField, string>>(EMPTY_MANUAL_ROW);
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<Record<EditableDirectoryField, string>>(EMPTY_MANUAL_ROW);
 
   const { data: users } = useQuery({
     queryKey: ['auth', 'users'],
@@ -171,6 +210,40 @@ export default function SalesPage() {
     },
   });
 
+  const manualCreateMutation = useMutation({
+    mutationFn: async (payload: Record<EditableDirectoryField, string>) => {
+      const body = Object.fromEntries(
+        Object.entries(payload).map(([k, v]) => [k, v.trim() === '' ? null : v.trim()]),
+      );
+      const res = await api.post('/sales/import-rows/manual', body);
+      return res.data;
+    },
+    onSuccess: () => {
+      setManualRow(EMPTY_MANUAL_ROW);
+      queryClient.invalidateQueries({ queryKey: ['sales', 'directory'] });
+    },
+  });
+
+  const updateRowMutation = useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Record<EditableDirectoryField, string>;
+    }) => {
+      const body = Object.fromEntries(
+        Object.entries(payload).map(([k, v]) => [k, v.trim() === '' ? null : v.trim()]),
+      );
+      const res = await api.patch(`/sales/import-rows/${id}`, body);
+      return res.data;
+    },
+    onSuccess: () => {
+      setEditingRowId(null);
+      queryClient.invalidateQueries({ queryKey: ['sales', 'directory'] });
+    },
+  });
+
   const items =
     contactMethodFilter === ''
       ? data?.items ?? []
@@ -178,13 +251,13 @@ export default function SalesPage() {
   const total = contactMethodFilter === '' ? (data?.total ?? 0) : items.length;
 
   async function exportDirectory(format: 'csv' | 'xlsx') {
-    const token = getToken();
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/sales/import-rows/export?format=${format}`,
-      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-    );
-    if (!res.ok) throw new Error('Export failed');
-    const blob = await res.blob();
+    const res = await api.get(`/sales/import-rows/export?format=${format}`, { responseType: 'blob' });
+    const blob = new Blob([res.data], {
+      type:
+        format === 'xlsx'
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'text/csv;charset=utf-8',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -375,6 +448,34 @@ export default function SalesPage() {
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Tabela za mailove i pozive. Podržan je import u formatima CSV i XLSX (sa bojama polja iz XLSX fajla).
           </p>
+          <div className="mt-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+            <p className="mb-2 text-sm font-medium text-zinc-800 dark:text-zinc-100">Ručni unos reda</p>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+              {DIRECTORY_COLUMNS.map((col) => (
+                <input
+                  key={`manual-${col.key}`}
+                  value={manualRow[col.key]}
+                  onChange={(e) => setManualRow((prev) => ({ ...prev, [col.key]: e.target.value }))}
+                  placeholder={col.label}
+                  className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                />
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => manualCreateMutation.mutate(manualRow)}
+                className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+              >
+                {manualCreateMutation.isPending ? 'Čuvam…' : 'Dodaj ručno'}
+              </button>
+              {manualCreateMutation.isError && (
+                <span className="self-center text-sm text-red-600 dark:text-red-400">
+                  Greška pri čuvanju reda.
+                </span>
+              )}
+            </div>
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <label className="text-sm text-zinc-600 dark:text-zinc-400">Filter</label>
             <select
@@ -424,6 +525,7 @@ export default function SalesPage() {
                       {DIRECTORY_COLUMNS.map((c) => (
                         <th key={String(c.key)} className="px-3 py-2 font-medium">{c.label}</th>
                       ))}
+                      <th className="px-3 py-2 font-medium">Akcije</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -431,18 +533,78 @@ export default function SalesPage() {
                       <tr key={row.id} className="border-b border-zinc-100 dark:border-zinc-800">
                         {DIRECTORY_COLUMNS.map((c) => {
                           const raw = row[c.key];
-                          const text = c.key === 'establishedAt' && raw ? new Date(String(raw)).toLocaleDateString() : String(raw ?? '—');
+                          const text =
+                            c.key === 'establishedAt' && raw ? new Date(String(raw)).toISOString().slice(0, 10) : String(raw ?? '');
                           const bg = row.fieldColors?.[String(c.key)];
+                          const editing = editingRowId === row.id;
                           return (
                             <td
                               key={`${row.id}-${String(c.key)}`}
                               className="px-3 py-2 text-zinc-700 dark:text-zinc-200"
                               style={bg ? { backgroundColor: bg } : undefined}
                             >
-                              {text}
+                              {editing ? (
+                                <input
+                                  value={editDraft[c.key]}
+                                  onChange={(e) =>
+                                    setEditDraft((prev) => ({ ...prev, [c.key]: e.target.value }))
+                                  }
+                                  className="w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+                                />
+                              ) : text || '—'}
                             </td>
                           );
                         })}
+                        <td className="px-3 py-2">
+                          {editingRowId === row.id ? (
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => updateRowMutation.mutate({ id: row.id, payload: editDraft })}
+                                className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600"
+                              >
+                                Sačuvaj
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingRowId(null)}
+                                className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600"
+                              >
+                                Otkaži
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingRowId(row.id);
+                                setEditDraft({
+                                  mb: String(row.mb ?? ''),
+                                  pib: String(row.pib ?? ''),
+                                  establishedAt: row.establishedAt
+                                    ? new Date(row.establishedAt).toISOString().slice(0, 10)
+                                    : '',
+                                  companyName: String(row.companyName ?? ''),
+                                  city: String(row.city ?? ''),
+                                  postalCode: String(row.postalCode ?? ''),
+                                  address: String(row.address ?? ''),
+                                  phone: String(row.phone ?? ''),
+                                  legalForm: String(row.legalForm ?? ''),
+                                  activityCode: String(row.activityCode ?? ''),
+                                  activityName: String(row.activityName ?? ''),
+                                  aprStatus: String(row.aprStatus ?? ''),
+                                  email: String(row.email ?? ''),
+                                  representative: String(row.representative ?? ''),
+                                  description: String(row.description ?? ''),
+                                  sizeClass: String(row.sizeClass ?? ''),
+                                });
+                              }}
+                              className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
