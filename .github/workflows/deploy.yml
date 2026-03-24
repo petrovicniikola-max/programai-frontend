@@ -25,15 +25,20 @@ jobs:
           echo "SSH command: ssh -i ~/.ssh/deploy_key ${SERVER_USER}@${SERVER_HOST}"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new "${SERVER_USER}@${SERVER_HOST}" '
             set -e
+            COMPOSE="docker compose -p programai -f /opt/docker-compose.prod.yml --env-file /opt/.env"
             echo "→ Pull programai-crm..."
             cd /opt/programai-crm && git pull origin main
             echo "→ Pull programai-frontend..."
             cd /opt/programai-frontend && git pull origin main
+            echo "→ Cleanup stale containers..."
+            docker ps -aq --filter "name=_programai_backend$" | xargs -r docker rm -f || true
+            docker ps -aq --filter "name=_programai_frontend$" | xargs -r docker rm -f || true
             echo "→ Build and restart containers..."
-            cd /opt && docker compose -f docker-compose.prod.yml --env-file .env build --no-cache
-            cd /opt && docker compose -f docker-compose.prod.yml --env-file .env up -d
+            $COMPOSE down --remove-orphans || true
+            $COMPOSE build --no-cache
+            $COMPOSE up -d --remove-orphans
             echo "→ Prisma migrate deploy..."
             docker exec programai_backend npx prisma migrate deploy || true
             echo "→ Done."
-            cd /opt && docker compose -f docker-compose.prod.yml ps
+            $COMPOSE ps
           '

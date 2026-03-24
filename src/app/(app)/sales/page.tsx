@@ -133,6 +133,10 @@ export default function SalesPage() {
   const [directoryPage, setDirectoryPage] = useState(1);
   const [directoryFilterField, setDirectoryFilterField] = useState('all');
   const [directoryFilterValue, setDirectoryFilterValue] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'csv' | 'xlsx'>('csv');
+  const [exportDateFrom, setExportDateFrom] = useState('');
+  const [exportDateTo, setExportDateTo] = useState('');
 
   const { data: users } = useQuery({
     queryKey: ['auth', 'users'],
@@ -198,8 +202,16 @@ export default function SalesPage() {
       : (data?.items ?? []).filter((t) => t.contactMethod === contactMethodFilter);
   const total = contactMethodFilter === '' ? (data?.total ?? 0) : items.length;
 
-  async function exportDirectory(format: 'csv' | 'xlsx') {
-    const res = await api.get(`/sales/import-rows/export?format=${format}`, { responseType: 'blob' });
+  async function exportDirectory(
+    format: 'csv' | 'xlsx',
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    const params = new URLSearchParams();
+    params.set('format', format);
+    if (dateFrom) params.set('contactDateFrom', startOfDay(dateFrom));
+    if (dateTo) params.set('contactDateTo', endOfDay(dateTo));
+    const res = await api.get(`/sales/import-rows/export?${params.toString()}`, { responseType: 'blob' });
     const blob = new Blob([res.data], {
       type:
         format === 'xlsx'
@@ -216,10 +228,18 @@ export default function SalesPage() {
     URL.revokeObjectURL(url);
   }
 
-  async function exportDirectoryFallback(format: 'csv' | 'xlsx') {
+  async function exportDirectoryFallback(
+    format: 'csv' | 'xlsx',
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
     const token = getToken();
     const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-    const res = await fetch(`${base}/sales/import-rows/export?format=${format}`, {
+    const params = new URLSearchParams();
+    params.set('format', format);
+    if (dateFrom) params.set('contactDateFrom', startOfDay(dateFrom));
+    if (dateTo) params.set('contactDateTo', endOfDay(dateTo));
+    const res = await fetch(`${base}/sales/import-rows/export?${params.toString()}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new Error('Export failed');
@@ -260,12 +280,9 @@ export default function SalesPage() {
             </button>
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  await exportDirectory('csv');
-                } catch {
-                  await exportDirectoryFallback('csv');
-                }
+              onClick={() => {
+                setExportFormat('csv');
+                setShowExportModal(true);
               }}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
             >
@@ -273,12 +290,9 @@ export default function SalesPage() {
             </button>
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  await exportDirectory('xlsx');
-                } catch {
-                  await exportDirectoryFallback('xlsx');
-                }
+              onClick={() => {
+                setExportFormat('xlsx');
+                setShowExportModal(true);
               }}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
             >
@@ -549,6 +563,65 @@ export default function SalesPage() {
               </>
             )}
           </div>
+          {showExportModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-xl rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                  Export po periodu (polje Datum)
+                </h3>
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                  Izaberi kalendarski period od-do za koji želiš izvoz podataka.
+                </p>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">Od datuma</label>
+                    <input
+                      type="date"
+                      value={exportDateFrom}
+                      onChange={(e) => setExportDateFrom(e.target.value)}
+                      className="w-full rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm text-zinc-600 dark:text-zinc-400">Do datuma</label>
+                    <input
+                      type="date"
+                      value={exportDateTo}
+                      onChange={(e) => setExportDateTo(e.target.value)}
+                      className="w-full rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowExportModal(false)}
+                    className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+                  >
+                    Otkaži
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (exportDateFrom && exportDateTo && exportDateFrom > exportDateTo) {
+                        window.alert('Datum "Od" ne može biti posle datuma "Do".');
+                        return;
+                      }
+                      try {
+                        await exportDirectory(exportFormat, exportDateFrom, exportDateTo);
+                      } catch {
+                        await exportDirectoryFallback(exportFormat, exportDateFrom, exportDateTo);
+                      }
+                      setShowExportModal(false);
+                    }}
+                    className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700"
+                  >
+                    Izvezi {exportFormat.toUpperCase()}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
         </>
       )}
