@@ -106,7 +106,7 @@ const DIRECTORY_COLUMNS: { key: EditableDirectoryField; label: string }[] = [
   { key: 'email', label: 'Email' },
   { key: 'representative', label: 'Zastupnik' },
   { key: 'description', label: 'Opis' },
-  { key: 'sizeClass', label: 'Polu/mali' },
+  { key: 'sizeClass', label: 'Poziv/mail' },
 ];
 
 const EMPTY_MANUAL_ROW: Record<EditableDirectoryField, string> = {
@@ -148,6 +148,8 @@ export default function SalesPage() {
   const [directoryPage, setDirectoryPage] = useState(1);
   const [directoryFilterField, setDirectoryFilterField] = useState('all');
   const [directoryFilterValue, setDirectoryFilterValue] = useState('');
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [manualRow, setManualRow] = useState<Record<EditableDirectoryField, string>>(EMPTY_MANUAL_ROW);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Record<EditableDirectoryField, string>>(EMPTY_MANUAL_ROW);
@@ -220,6 +222,7 @@ export default function SalesPage() {
     },
     onSuccess: () => {
       setManualRow(EMPTY_MANUAL_ROW);
+      setShowManualModal(false);
       queryClient.invalidateQueries({ queryKey: ['sales', 'directory'] });
     },
   });
@@ -240,6 +243,7 @@ export default function SalesPage() {
     },
     onSuccess: () => {
       setEditingRowId(null);
+      setShowEditModal(false);
       queryClient.invalidateQueries({ queryKey: ['sales', 'directory'] });
     },
   });
@@ -251,7 +255,9 @@ export default function SalesPage() {
   const total = contactMethodFilter === '' ? (data?.total ?? 0) : items.length;
 
   async function exportDirectory(format: 'csv' | 'xlsx') {
-    const res = await api.get(`/sales/import-rows/export?format=${format}`, { responseType: 'blob' });
+    const res = await api.get(`/sales/import-rows/export?format=${format}`, {
+      responseType: 'blob',
+    });
     const blob = new Blob([res.data], {
       type:
         format === 'xlsx'
@@ -262,7 +268,9 @@ export default function SalesPage() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `prodaja_mailovi_pozivi_${new Date().toISOString().slice(0, 10)}.${format}`;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
   }
 
@@ -292,14 +300,33 @@ export default function SalesPage() {
             </button>
             <button
               type="button"
-              onClick={() => exportDirectory('csv')}
+              onClick={() => setShowManualModal(true)}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+            >
+              Dodaj ručno
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await exportDirectory('csv');
+                } catch {
+                  window.alert('CSV export nije uspeo. Proveri backend i pokušaj ponovo.');
+                }
+              }}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
             >
               Export CSV
             </button>
             <button
               type="button"
-              onClick={() => exportDirectory('xlsx')}
+              onClick={async () => {
+                try {
+                  await exportDirectory('xlsx');
+                } catch {
+                  window.alert('XLSX export nije uspeo. Proveri backend i pokušaj ponovo.');
+                }
+              }}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
             >
               Export XLSX
@@ -448,34 +475,6 @@ export default function SalesPage() {
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Tabela za mailove i pozive. Podržan je import u formatima CSV i XLSX (sa bojama polja iz XLSX fajla).
           </p>
-          <div className="mt-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-            <p className="mb-2 text-sm font-medium text-zinc-800 dark:text-zinc-100">Ručni unos reda</p>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
-              {DIRECTORY_COLUMNS.map((col) => (
-                <input
-                  key={`manual-${col.key}`}
-                  value={manualRow[col.key]}
-                  onChange={(e) => setManualRow((prev) => ({ ...prev, [col.key]: e.target.value }))}
-                  placeholder={col.label}
-                  className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                />
-              ))}
-            </div>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => manualCreateMutation.mutate(manualRow)}
-                className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
-              >
-                {manualCreateMutation.isPending ? 'Čuvam…' : 'Dodaj ručno'}
-              </button>
-              {manualCreateMutation.isError && (
-                <span className="self-center text-sm text-red-600 dark:text-red-400">
-                  Greška pri čuvanju reda.
-                </span>
-              )}
-            </div>
-          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <label className="text-sm text-zinc-600 dark:text-zinc-400">Filter</label>
             <select
@@ -536,74 +535,47 @@ export default function SalesPage() {
                           const text =
                             c.key === 'establishedAt' && raw ? new Date(String(raw)).toISOString().slice(0, 10) : String(raw ?? '');
                           const bg = row.fieldColors?.[String(c.key)];
-                          const editing = editingRowId === row.id;
                           return (
                             <td
                               key={`${row.id}-${String(c.key)}`}
                               className="px-3 py-2 text-zinc-700 dark:text-zinc-200"
                               style={bg ? { backgroundColor: bg } : undefined}
                             >
-                              {editing ? (
-                                <input
-                                  value={editDraft[c.key]}
-                                  onChange={(e) =>
-                                    setEditDraft((prev) => ({ ...prev, [c.key]: e.target.value }))
-                                  }
-                                  className="w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-900"
-                                />
-                              ) : text || '—'}
+                              {text || '—'}
                             </td>
                           );
                         })}
                         <td className="px-3 py-2">
-                          {editingRowId === row.id ? (
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => updateRowMutation.mutate({ id: row.id, payload: editDraft })}
-                                className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600"
-                              >
-                                Sačuvaj
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingRowId(null)}
-                                className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600"
-                              >
-                                Otkaži
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingRowId(row.id);
-                                setEditDraft({
-                                  mb: String(row.mb ?? ''),
-                                  pib: String(row.pib ?? ''),
-                                  establishedAt: row.establishedAt
-                                    ? new Date(row.establishedAt).toISOString().slice(0, 10)
-                                    : '',
-                                  companyName: String(row.companyName ?? ''),
-                                  city: String(row.city ?? ''),
-                                  postalCode: String(row.postalCode ?? ''),
-                                  address: String(row.address ?? ''),
-                                  phone: String(row.phone ?? ''),
-                                  legalForm: String(row.legalForm ?? ''),
-                                  activityCode: String(row.activityCode ?? ''),
-                                  activityName: String(row.activityName ?? ''),
-                                  aprStatus: String(row.aprStatus ?? ''),
-                                  email: String(row.email ?? ''),
-                                  representative: String(row.representative ?? ''),
-                                  description: String(row.description ?? ''),
-                                  sizeClass: String(row.sizeClass ?? ''),
-                                });
-                              }}
-                              className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600"
-                            >
-                              Edit
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingRowId(row.id);
+                              setShowEditModal(true);
+                              setEditDraft({
+                                mb: String(row.mb ?? ''),
+                                pib: String(row.pib ?? ''),
+                                establishedAt: row.establishedAt
+                                  ? new Date(row.establishedAt).toISOString().slice(0, 10)
+                                  : '',
+                                companyName: String(row.companyName ?? ''),
+                                city: String(row.city ?? ''),
+                                postalCode: String(row.postalCode ?? ''),
+                                address: String(row.address ?? ''),
+                                phone: String(row.phone ?? ''),
+                                legalForm: String(row.legalForm ?? ''),
+                                activityCode: String(row.activityCode ?? ''),
+                                activityName: String(row.activityName ?? ''),
+                                aprStatus: String(row.aprStatus ?? ''),
+                                email: String(row.email ?? ''),
+                                representative: String(row.representative ?? ''),
+                                description: String(row.description ?? ''),
+                                sizeClass: String(row.sizeClass ?? ''),
+                              });
+                            }}
+                            className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600"
+                          >
+                            Edit
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -638,6 +610,96 @@ export default function SalesPage() {
               </>
             )}
           </div>
+
+          {showManualModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="max-h-[90vh] w-full max-w-6xl overflow-auto rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Ručni unos reda</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowManualModal(false)}
+                    className="rounded border border-zinc-300 px-3 py-1 text-sm dark:border-zinc-600"
+                  >
+                    Zatvori
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+                  {DIRECTORY_COLUMNS.map((col) => (
+                    <input
+                      key={`manual-modal-${col.key}`}
+                      value={manualRow[col.key]}
+                      onChange={(e) => setManualRow((prev) => ({ ...prev, [col.key]: e.target.value }))}
+                      placeholder={col.label}
+                      className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                    />
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => manualCreateMutation.mutate(manualRow)}
+                    className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+                  >
+                    {manualCreateMutation.isPending ? 'Čuvam…' : 'Sačuvaj'}
+                  </button>
+                  {manualCreateMutation.isError && (
+                    <span className="self-center text-sm text-red-600 dark:text-red-400">
+                      Greška pri čuvanju reda.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showEditModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="max-h-[90vh] w-full max-w-6xl overflow-auto rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Izmena reda</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingRowId(null);
+                    }}
+                    className="rounded border border-zinc-300 px-3 py-1 text-sm dark:border-zinc-600"
+                  >
+                    Zatvori
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+                  {DIRECTORY_COLUMNS.map((col) => (
+                    <input
+                      key={`edit-modal-${col.key}`}
+                      value={editDraft[col.key]}
+                      onChange={(e) => setEditDraft((prev) => ({ ...prev, [col.key]: e.target.value }))}
+                      placeholder={col.label}
+                      className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                    />
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={!editingRowId}
+                    onClick={() =>
+                      editingRowId && updateRowMutation.mutate({ id: editingRowId, payload: editDraft })
+                    }
+                    className="rounded border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-600"
+                  >
+                    {updateRowMutation.isPending ? 'Čuvam…' : 'Sačuvaj izmene'}
+                  </button>
+                  {updateRowMutation.isError && (
+                    <span className="self-center text-sm text-red-600 dark:text-red-400">
+                      Greška pri čuvanju izmena.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
