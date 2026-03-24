@@ -22,6 +22,7 @@ type DirectoryForm = {
   representative: string;
   description: string;
   sizeClass: string;
+  contactDate: string;
 };
 
 const FIELD_ORDER: { key: keyof DirectoryForm; label: string }[] = [
@@ -41,6 +42,7 @@ const FIELD_ORDER: { key: keyof DirectoryForm; label: string }[] = [
   { key: 'representative', label: 'Zastupnik' },
   { key: 'description', label: 'Opis' },
   { key: 'sizeClass', label: 'Poziv/mail' },
+  { key: 'contactDate', label: 'Datum' },
 ];
 
 const EMPTY_FORM: DirectoryForm = {
@@ -60,6 +62,7 @@ const EMPTY_FORM: DirectoryForm = {
   representative: '',
   description: '',
   sizeClass: '',
+  contactDate: '',
 };
 
 export default function SalesDirectoryEditPage({
@@ -100,6 +103,7 @@ export default function SalesDirectoryEditPage({
       representative: String(data.representative ?? ''),
       description: String(data.description ?? ''),
       sizeClass: String(data.sizeClass ?? ''),
+      contactDate: data.contactDate ? String(data.contactDate).slice(0, 10) : '',
     };
   }, [data]);
 
@@ -180,7 +184,7 @@ export default function SalesDirectoryEditPage({
                 {field.label}
               </label>
               <input
-                type={field.key === 'establishedAt' ? 'date' : 'text'}
+                type={field.key === 'establishedAt' || field.key === 'contactDate' ? 'date' : 'text'}
                 name={field.key}
                 defaultValue={defaults[field.key]}
                 className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"

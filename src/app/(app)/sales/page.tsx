@@ -44,6 +44,7 @@ interface SalesDirectoryRow {
   representative?: string | null;
   description?: string | null;
   sizeClass?: string | null;
+  contactDate?: string | null;
   fieldColors?: Record<string, string> | null;
   updatedAt: string;
 }
@@ -64,7 +65,8 @@ type EditableDirectoryField =
   | 'email'
   | 'representative'
   | 'description'
-  | 'sizeClass';
+  | 'sizeClass'
+  | 'contactDate';
 
 interface SalesDirectoryResponse {
   items: SalesDirectoryRow[];
@@ -108,6 +110,7 @@ const DIRECTORY_COLUMNS: { key: EditableDirectoryField; label: string }[] = [
   { key: 'representative', label: 'Zastupnik' },
   { key: 'description', label: 'Opis' },
   { key: 'sizeClass', label: 'Poziv/mail' },
+  { key: 'contactDate', label: 'Datum' },
 ];
 
 export default function SalesPage() {
@@ -491,7 +494,9 @@ export default function SalesPage() {
                         {DIRECTORY_COLUMNS.map((c) => {
                           const raw = row[c.key];
                           const text =
-                            c.key === 'establishedAt' && raw ? new Date(String(raw)).toISOString().slice(0, 10) : String(raw ?? '');
+                            (c.key === 'establishedAt' || c.key === 'contactDate') && raw
+                              ? new Date(String(raw)).toISOString().slice(0, 10)
+                              : String(raw ?? '');
                           const bg = row.fieldColors?.[String(c.key)];
                           return (
                             <td
