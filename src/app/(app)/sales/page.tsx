@@ -93,6 +93,16 @@ function endOfDay(dateStr: string): string {
   return new Date(dateStr + 'T23:59:59.999').toISOString();
 }
 
+function formatDateDdMmYyyy(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const d = new Date(String(dateStr));
+  if (Number.isNaN(d.getTime())) return '';
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const year = d.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+}
+
 const DIRECTORY_COLUMNS: { key: EditableDirectoryField; label: string }[] = [
   { key: 'mb', label: 'MB' },
   { key: 'pib', label: 'PIB' },
@@ -509,7 +519,7 @@ export default function SalesPage() {
                           const raw = row[c.key];
                           const text =
                             (c.key === 'establishedAt' || c.key === 'contactDate') && raw
-                              ? new Date(String(raw)).toISOString().slice(0, 10)
+                              ? formatDateDdMmYyyy(String(raw))
                               : String(raw ?? '');
                           const bg = row.fieldColors?.[String(c.key)];
                           return (
