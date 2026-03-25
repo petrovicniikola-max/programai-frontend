@@ -46,6 +46,8 @@ jobs:
             $COMPOSE up -d --remove-orphans
             echo "→ Prisma migrate deploy..."
             docker exec programai_backend npx prisma migrate deploy || true
+            echo "→ Prisma db push (schema sync)..."
+            docker exec programai_backend npx prisma db push
             echo "→ Done."
             $COMPOSE ps
           '
