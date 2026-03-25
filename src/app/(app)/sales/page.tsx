@@ -127,6 +127,10 @@ export default function SalesPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const now = useMemo(() => new Date(), []);
+  const hiddenDirectoryTableFields = useMemo(
+    () => new Set<EditableDirectoryField>(['postalCode', 'legalForm', 'activityCode', 'aprStatus']),
+    [],
+  );
   const defaultFrom = useMemo(
     () => new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
     [now],
@@ -503,10 +507,10 @@ export default function SalesPage() {
             {directoryLoading && <p className="p-4 text-zinc-500 dark:text-zinc-400">Učitavanje…</p>}
             {directory && !directoryError && (
               <>
-                <table className="min-w-[1500px] w-full text-left text-sm">
+                <table className="min-w-[1200px] w-full text-left text-sm">
                   <thead className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
                     <tr>
-                      {DIRECTORY_COLUMNS.map((c) => (
+                      {DIRECTORY_COLUMNS.filter((c) => !hiddenDirectoryTableFields.has(c.key)).map((c) => (
                         <th key={String(c.key)} className="px-3 py-2 font-medium">{c.label}</th>
                       ))}
                       <th className="px-3 py-2 font-medium">Akcije</th>
@@ -515,7 +519,7 @@ export default function SalesPage() {
                   <tbody>
                     {directory.items.map((row) => (
                       <tr key={row.id} className="border-b border-zinc-100 dark:border-zinc-800">
-                        {DIRECTORY_COLUMNS.map((c) => {
+                        {DIRECTORY_COLUMNS.filter((c) => !hiddenDirectoryTableFields.has(c.key)).map((c) => {
                           const raw = row[c.key];
                           const text =
                             (c.key === 'establishedAt' || c.key === 'contactDate') && raw
