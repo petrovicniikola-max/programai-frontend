@@ -139,9 +139,18 @@ export interface PublicBranding {
 
 // Devices / Licences helpers
 
+export interface Distributor {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { devices: number };
+}
+
 export interface Device {
   id: string;
   companyId: string | null;
+  distributorId?: string | null;
   name: string | null;
   model: string | null;
   serialNo: string | null;
@@ -150,6 +159,17 @@ export interface Device {
   mdmProfileName?: string | null;
   updatedAt: string;
   company?: { id: string; name: string } | null;
+  distributor?: { id: string; name: string } | null;
+}
+
+export interface TeronImportResult {
+  created: number;
+  updated: number;
+  companiesCreated: number;
+  distributorsCreated: number;
+  licencesCreated: number;
+  licencesUpdated: number;
+  errors: { row: number; message: string }[];
 }
 
 export interface Licence {
@@ -169,6 +189,7 @@ export interface Licence {
 
 export async function getDevices(params?: {
   companyId?: string;
+  distributorId?: string;
   status?: string;
   search?: string;
   createdAtFrom?: string;

@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useState, useEffect } from 'react';
+import type { Distributor } from '@/lib/api';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type Device, type User } from '@/lib/api';
@@ -26,7 +27,12 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
   const { data: device, isLoading, error: loadError } = useQuery({
     queryKey: ['device', id],
     queryFn: async () => {
-      const res = await api.get<Device & { company?: { id: string; name: string } | null }>(`/devices/${id}`);
+      const res = await api.get<
+        Device & {
+          company?: { id: string; name: string } | null;
+          distributor?: { id: string; name: string } | null;
+        }
+      >(`/devices/${id}`);
       return res.data;
     },
   });
@@ -40,8 +46,26 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
     enabled: me?.role === 'SUPER_ADMIN',
   });
 
+  const { data: distributors = [] } = useQuery({
+    queryKey: ['distributors'],
+    queryFn: async () => {
+      const res = await api.get<Distributor[]>('/distributors');
+      return res.data ?? [];
+    },
+    enabled: me?.role === 'SUPER_ADMIN',
+  });
+
   const updateMutation = useMutation({
-    mutationFn: async (body: { companyId?: string; name?: string; model?: string; serialNo?: string; status?: string; notes?: string; mdmProfileName?: string }) => {
+    mutationFn: async (body: {
+      companyId?: string;
+      distributorId?: string;
+      name?: string;
+      model?: string;
+      serialNo?: string;
+      status?: string;
+      notes?: string;
+      mdmProfileName?: string;
+    }) => {
       await api.patch(`/devices/${id}`, body);
     },
     onSuccess: () => {
@@ -121,6 +145,7 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
             const formData = new FormData(form);
             updateMutation.mutate({
               companyId: (formData.get('companyId') as string) || undefined,
+              distributorId: (formData.get('distributorId') as string) || undefined,
               name: (formData.get('name') as string) || undefined,
               model: editModel || undefined,
               serialNo: (formData.get('serialNo') as string) || undefined,
@@ -149,6 +174,23 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Distributer
+              </label>
+              <select
+                name="distributorId"
+                defaultValue={device.distributorId ?? device.distributor?.id ?? ''}
+                className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+              >
+                <option value="">—</option>
+                {distributors.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
                   </option>
                 ))}
               </select>
@@ -302,6 +344,12 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
         <div className="flex gap-3 py-1">
           <span className="w-32 text-zinc-500 dark:text-zinc-400">Kompanija</span>
           <span className="text-zinc-900 dark:text-zinc-50">{device.company ? device.company.name : '—'}</span>
+        </div>
+        <div className="flex gap-3 py-1">
+          <span className="w-32 text-zinc-500 dark:text-zinc-400">Distributer</span>
+          <span className="text-zinc-900 dark:text-zinc-50">
+            {device.distributor?.name ?? '—'}
+          </span>
         </div>
         {device.notes && (
           <div className="flex gap-3 py-1">

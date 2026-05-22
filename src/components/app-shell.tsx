@@ -16,6 +16,7 @@ const baseNav = [
   { href: '/sales', label: 'Prodaja' },
   { href: '/clients', label: 'Korisnici' },
   { href: '/devices', label: 'Devices' },
+  { href: '/distributors', label: 'Distributeri' },
   { href: '/licences', label: 'Licences' },
   { href: '/reports', label: 'Reports' },
   { href: '/forms', label: 'Forms' },

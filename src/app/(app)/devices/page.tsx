@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -18,6 +18,7 @@ const baseURL =
 function DevicesPageInner() {
   const searchParams = useSearchParams();
   const companyIdFromUrl = searchParams.get('companyId') ?? '';
+  const distributorIdFromUrl = searchParams.get('distributorId') ?? '';
   const [search, setSearch] = useState('');
   const [importModalOpen, setImportModalOpen] = useState(false);
   const { showError } = useToast();
@@ -32,12 +33,27 @@ function DevicesPageInner() {
 
   const canEdit = me?.role === 'SUPER_ADMIN';
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['devices', search, companyIdFromUrl],
+  const { data: distributors = [] } = useQuery({
+    queryKey: ['distributors'],
     queryFn: async () => {
-      const params: { search?: string; companyId?: string } = {};
+      const res = await api.get<{ id: string; name: string }[]>('/distributors');
+      return res.data ?? [];
+    },
+  });
+
+  const [distributorFilter, setDistributorFilter] = useState(distributorIdFromUrl);
+
+  useEffect(() => {
+    setDistributorFilter(distributorIdFromUrl);
+  }, [distributorIdFromUrl]);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['devices', search, companyIdFromUrl, distributorFilter],
+    queryFn: async () => {
+      const params: { search?: string; companyId?: string; distributorId?: string } = {};
       if (search.trim()) params.search = search.trim();
       if (companyIdFromUrl) params.companyId = companyIdFromUrl;
+      if (distributorFilter) params.distributorId = distributorFilter;
       return getDevices(Object.keys(params).length ? params : undefined);
     },
   });
@@ -85,7 +101,7 @@ function DevicesPageInner() {
         <div>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Devices</h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Lista uređaja po tenant-u. Filtriraj po serijskom broju.
+            Lista uređaja. Pretraga po serijskom broju, nazivu, kompaniji ili distributeru.
           </p>
         </div>
         <div className="flex gap-2">
@@ -115,11 +131,32 @@ function DevicesPageInner() {
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <input
           type="text"
-          placeholder="Pretraži po serialNo…"
+          placeholder="Pretraži…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full max-w-xs rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
         />
+        <select
+          value={distributorFilter}
+          onChange={(e) => setDistributorFilter(e.target.value)}
+          className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        >
+          <option value="">Svi distributeri</option>
+          {distributors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+        {distributorFilter && (
+          <button
+            type="button"
+            onClick={() => setDistributorFilter('')}
+            className="text-sm text-zinc-600 hover:underline dark:text-zinc-400"
+          >
+            Poništi filter
+          </button>
+        )}
       </div>
       {isLoading && <p className="mt-4 text-sm text-zinc-500">Loading…</p>}
       {errorMessage && (
@@ -136,6 +173,7 @@ function DevicesPageInner() {
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Model</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Serial</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Company</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Distributer</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Status</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Updated</th>
                 {canEdit && (
@@ -150,6 +188,9 @@ function DevicesPageInner() {
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{d.model ?? '—'}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{d.serialNo ?? '—'}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{d.company?.name ?? '—'}</td>
+                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
+                    {d.distributor?.name ?? '—'}
+                  </td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{d.status}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
                     {new Date(d.updatedAt).toLocaleString()}
@@ -168,7 +209,7 @@ function DevicesPageInner() {
               ))}
               {devices.length === 0 && (
                 <tr>
-                  <td colSpan={canEdit ? 7 : 6} className="px-4 py-3 text-center text-sm text-zinc-500">
+                  <td colSpan={canEdit ? 8 : 7} className="px-4 py-3 text-center text-sm text-zinc-500">
                     No devices found.
                   </td>
                 </tr>
