@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Modal } from './modal';
 import { SearchableSelect } from './searchable-select';
+import { TicketEntityPickers } from './ticket-entity-pickers';
 
 interface TenantUser {
   id: string;
@@ -26,6 +27,9 @@ interface CreateTicketModalProps {
 export function CreateTicketModal({ open, onClose, users, currentUserId }: CreateTicketModalProps) {
   const queryClient = useQueryClient();
   const [reportedBy, setReportedBy] = useState('');
+  const [companyId, setCompanyId] = useState('');
+  const [distributorId, setDistributorId] = useState('');
+  const [deviceId, setDeviceId] = useState('');
   const [opisPrijave, setOpisPrijave] = useState('');
   const [putRows, setPutRows] = useState<string[]>(['']);
   const [tokPrijave, setTokPrijave] = useState('');
@@ -64,7 +68,8 @@ export function CreateTicketModal({ open, onClose, users, currentUserId }: Creat
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const title = reportedBy.trim() ? `Prijava – ${reportedBy.trim()}` : 'Prijava – Bez naziva';
+    const reporter = reportedBy.trim();
+    const title = reporter ? `Prijava – ${reporter}` : 'Prijava – Bez naziva';
     const putFiltered = putRows.map((s) => s.trim()).filter(Boolean);
     try {
       await api.post('/tickets', {
@@ -72,7 +77,9 @@ export function CreateTicketModal({ open, onClose, users, currentUserId }: Creat
         description: opisPrijave.trim() || undefined,
         type: 'FIELD',
         status: 'OPEN',
-        reportedBy: reportedBy.trim() || undefined,
+        companyId: companyId || undefined,
+        deviceId: deviceId || undefined,
+        reportedBy: reporter || undefined,
         putIAngazovanje: putFiltered.length ? putFiltered : undefined,
         tokPrijave: tokPrijave.trim() || undefined,
         zakljucak: zakljucak.trim() || undefined,
@@ -82,6 +89,9 @@ export function CreateTicketModal({ open, onClose, users, currentUserId }: Creat
       });
       await queryClient.invalidateQueries({ queryKey: ['tickets'] });
       setReportedBy('');
+      setCompanyId('');
+      setDistributorId('');
+      setDeviceId('');
       setOpisPrijave('');
       setPutRows(['']);
       setTokPrijave('');
@@ -111,15 +121,17 @@ export function CreateTicketModal({ open, onClose, users, currentUserId }: Creat
         )}
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            1. Ko je prijavio?
-          </label>
-          <input
-            type="text"
-            value={reportedBy}
-            onChange={(e) => setReportedBy(e.target.value)}
-            placeholder="Ime firme ili naziv korisnika"
-            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+          <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            1. Ko je prijavio? (korisnik, distributer, uređaj)
+          </p>
+          <TicketEntityPickers
+            companyId={companyId}
+            onCompanyId={setCompanyId}
+            distributorId={distributorId}
+            onDistributorId={setDistributorId}
+            deviceId={deviceId}
+            onDeviceId={setDeviceId}
+            onCompanyName={setReportedBy}
           />
         </div>
 

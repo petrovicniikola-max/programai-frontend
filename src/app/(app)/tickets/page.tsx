@@ -7,6 +7,8 @@ import { api } from '@/lib/api';
 import { useToast } from '@/components/toast';
 import { CreateTicketModal } from '@/components/create-ticket-modal';
 import { SearchableSelect } from '@/components/searchable-select';
+import { AsyncSearchableSelect } from '@/components/async-searchable-select';
+import { searchCompanies, minSearchHint } from '@/lib/entity-search';
 
 interface Ticket {
   id: string;
@@ -54,6 +56,7 @@ export default function TicketsPage() {
    // Filter: tickets created in last N days (empty = all)
   const [createdInLastDays, setCreatedInLastDays] = useState<string>('');
   const [page, setPage] = useState(1);
+  const [listSearch, setListSearch] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const { data: users } = useQuery({
@@ -72,16 +75,8 @@ export default function TicketsPage() {
     },
   });
 
-  const { data: companies = [] } = useQuery({
-    queryKey: ['companies'],
-    queryFn: async () => {
-      const res = await api.get<{ id: string; name: string }[]>('/companies');
-      return res.data ?? [];
-    },
-  });
-
   const { data, isLoading, error } = useQuery({
-    queryKey: ['tickets', status, type, assigneeId, createdByUserId, companyId, createdInLastDays, page],
+    queryKey: ['tickets', status, type, assigneeId, createdByUserId, companyId, createdInLastDays, listSearch, page],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status) params.set('status', status);
@@ -89,6 +84,7 @@ export default function TicketsPage() {
       if (assigneeId) params.set('assigneeId', assigneeId);
       if (createdByUserId) params.set('createdByUserId', createdByUserId);
       if (companyId) params.set('companyId', companyId);
+      if (listSearch.trim().length >= 2) params.set('search', listSearch.trim());
       if (createdInLastDays) {
         const days = Number(createdInLastDays);
         if (!Number.isNaN(days) && days > 0) {
@@ -147,6 +143,16 @@ export default function TicketsPage() {
         currentUserId={me?.id}
       />
       <div className="mt-4 flex flex-wrap items-center gap-4">
+        <input
+          type="text"
+          placeholder="Pretraži tikete (key, naslov, korisnik)…"
+          value={listSearch}
+          onChange={(e) => {
+            setListSearch(e.target.value);
+            setPage(1);
+          }}
+          className="w-full min-w-[14rem] max-w-md rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        />
         <div className="flex items-center gap-2">
           <label className="text-sm text-zinc-600 dark:text-zinc-400">Status</label>
           <select
@@ -218,18 +224,18 @@ export default function TicketsPage() {
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm text-zinc-600 dark:text-zinc-400">Company</label>
-          <SearchableSelect
+          <AsyncSearchableSelect
             value={companyId}
             onChange={(v) => {
               setCompanyId(v);
               setPage(1);
             }}
-            options={[
-              { id: '', label: 'All' },
-              ...companies.map((c) => ({ id: c.id, label: c.name })),
-            ]}
-            placeholder="All"
-            searchPlaceholder="Pretraži kompanije..."
+            loadOptions={searchCompanies}
+            placeholder="Svi"
+            searchPlaceholder="Naziv korisnika…"
+            minSearchHint={minSearchHint()}
+            allowEmpty
+            emptyLabel="Svi"
             className="min-w-[12rem]"
           />
         </div>

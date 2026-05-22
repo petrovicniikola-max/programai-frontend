@@ -1,10 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Distributor } from '@/lib/api';
 
 export default function DistributorsPage() {
+  const [search, setSearch] = useState('');
+
   const { data: distributors = [], isLoading, error } = useQuery({
     queryKey: ['distributors'],
     queryFn: async () => {
@@ -13,6 +16,12 @@ export default function DistributorsPage() {
     },
   });
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q || q.length < 2) return distributors;
+    return distributors.filter((d) => d.name.toLowerCase().includes(q));
+  }, [distributors, search]);
+
   return (
     <div>
       <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Distributeri</h1>
@@ -20,6 +29,16 @@ export default function DistributorsPage() {
         Lista distributera iz Teron uvoza i ručnog dodeljivanja na uređajima. Klik na distributera filtrira
         uređaje.
       </p>
+
+      <div className="mt-4">
+        <input
+          type="text"
+          placeholder="Pretraži distributere…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full max-w-md rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        />
+      </div>
 
       {isLoading && <p className="mt-4 text-sm text-zinc-500">Učitavanje…</p>}
       {error && (
@@ -41,7 +60,7 @@ export default function DistributorsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-              {distributors.map((d) => (
+              {filtered.map((d) => (
                 <tr key={d.id} className="bg-white dark:bg-zinc-800/40">
                   <td className="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-50">{d.name}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{d._count?.devices ?? 0}</td>
@@ -55,10 +74,12 @@ export default function DistributorsPage() {
                   </td>
                 </tr>
               ))}
-              {distributors.length === 0 && (
+              {filtered.length === 0 && (
                 <tr>
                   <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
-                    Nema distributera. Uvezi Teron Excel na stranici Uređaji.
+                    {distributors.length === 0
+                      ? 'Nema distributera. Uvezi Teron Excel na stranici Uređaji.'
+                      : 'Nema rezultata pretrage.'}
                   </td>
                 </tr>
               )}

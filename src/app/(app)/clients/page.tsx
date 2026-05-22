@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Modal } from '@/components/modal';
+import { AsyncSearchableSelect } from '@/components/async-searchable-select';
+import { searchCompanies, minSearchHint } from '@/lib/entity-search';
 import { useToast } from '@/components/toast';
 
 interface Company {
@@ -38,6 +40,7 @@ export default function ClientsPage() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Korisnici');
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
   const [phoneSearch, setPhoneSearch] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const { showError } = useToast();
@@ -58,6 +61,18 @@ export default function ClientsPage() {
       return res.data ?? [];
     },
   });
+  const filteredCompanies = useMemo(() => {
+    const q = companySearch.trim().toLowerCase();
+    if (!q || q.length < 2) return companies;
+    return companies.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.city?.toLowerCase().includes(q) ?? false) ||
+        (c.pib?.includes(q) ?? false) ||
+        (c.mb?.includes(q) ?? false),
+    );
+  }, [companies, companySearch]);
+
   const contacts = selectedCompanyId
     ? allContacts.filter((c) => c.companyId === selectedCompanyId)
     : allContacts;
@@ -125,6 +140,15 @@ export default function ClientsPage() {
 
       {activeTab === 'Korisnici' && (
         <div className="mt-4">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <input
+              type="text"
+              placeholder="Pretraži korisnike (naziv, grad, PIB, MB)…"
+              value={companySearch}
+              onChange={(e) => setCompanySearch(e.target.value)}
+              className="w-full max-w-md rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+            />
+          </div>
           <div className="flex justify-end mb-3">
             <button
               type="button"
@@ -148,7 +172,7 @@ export default function ClientsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-                  {companies.map((c) => (
+                  {filteredCompanies.map((c) => (
                     <tr key={c.id} className="bg-white dark:bg-zinc-800/30">
                       <td className="px-4 py-2 text-sm font-medium text-zinc-900 dark:text-zinc-50">
                         <Link href={`/clients/${c.id}`} className="text-emerald-600 hover:underline dark:text-emerald-400">
@@ -164,8 +188,10 @@ export default function ClientsPage() {
                   ))}
                 </tbody>
               </table>
-              {companies.length === 0 && (
-                <p className="p-4 text-center text-sm text-zinc-500">Nema korisnika.</p>
+              {filteredCompanies.length === 0 && (
+                <p className="p-4 text-center text-sm text-zinc-500">
+                  {companies.length === 0 ? 'Nema korisnika.' : 'Nema rezultata pretrage.'}
+                </p>
               )}
             </div>
           )}
@@ -428,16 +454,15 @@ function CreateContactModal({
         </div>
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Company</label>
-          <select
+          <AsyncSearchableSelect
             value={companyId}
-            onChange={(e) => setCompanyId(e.target.value)}
-            className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-          >
-            <option value="">—</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+            onChange={setCompanyId}
+            loadOptions={searchCompanies}
+            placeholder="—"
+            searchPlaceholder="Naziv korisnika…"
+            minSearchHint={minSearchHint()}
+            className="mt-1"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Phones (comma or newline)</label>

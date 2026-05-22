@@ -52,9 +52,12 @@ export function SearchableSelect({
     else setLocalSearch(q);
   };
 
-  const filteredOptions =
-    filterByLabel && search.trim()
-      ? options.filter((o) => o.label.toLowerCase().includes(search.trim().toLowerCase()))
+  const searchTrim = search.trim();
+  const belowMin = minSearchChars != null && minSearchChars > 0 && searchTrim.length > 0 && searchTrim.length < minSearchChars;
+  const filteredOptions = belowMin
+    ? []
+    : filterByLabel && searchTrim
+      ? options.filter((o) => o.label.toLowerCase().includes(searchTrim.toLowerCase()))
       : options;
 
   const selectedOption = options.find((o) => o.id === value);

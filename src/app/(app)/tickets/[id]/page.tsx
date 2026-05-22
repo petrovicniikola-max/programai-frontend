@@ -7,6 +7,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type Device, type Licence } from '@/lib/api';
 import { useToast } from '@/components/toast';
 import { SearchableSelect } from '@/components/searchable-select';
+import { TicketEntityPickers } from '@/components/ticket-entity-pickers';
 
 interface TicketDetail {
   id: string;
@@ -24,7 +25,15 @@ interface TicketDetail {
   createdAt: string;
   updatedAt: string;
   createdByUserId?: string | null;
+  companyId?: string | null;
+  deviceId?: string | null;
   company: { id: string; name: string; pib: string | null; mb: string | null } | null;
+  device?: {
+    id: string;
+    serialNo: string | null;
+    name: string | null;
+    distributor?: { id: string; name: string } | null;
+  } | null;
   contact: { id: string; name: string } | null;
   assignee: { id: string; email: string; displayName: string | null } | null;
   createdBy: { id: string; email: string; displayName: string | null } | null;
@@ -173,6 +182,7 @@ export default function TicketDetailPage({
       status?: string;
       type?: string;
       companyId?: string | null;
+      deviceId?: string | null;
       contactId?: string | null;
       assigneeId?: string | null;
       callOccurredAt?: string | null;
@@ -533,15 +543,32 @@ function TicketEditForm({
   onDelete: () => void;
   deleting: boolean;
 }) {
-  const [companyId, setCompanyId] = useState(ticket.company?.id ?? '');
+  const [companyId, setCompanyId] = useState(ticket.company?.id ?? ticket.companyId ?? '');
+  const [distributorId, setDistributorId] = useState(ticket.device?.distributor?.id ?? '');
+  const [deviceId, setDeviceId] = useState(ticket.device?.id ?? ticket.deviceId ?? '');
+  const [reportedBy, setReportedBy] = useState(ticket.reportedBy ?? ticket.company?.name ?? '');
   const [contactId, setContactId] = useState(ticket.contact?.id ?? '');
   const [assigneeId, setAssigneeId] = useState(ticket.assignee?.id ?? '');
 
   useEffect(() => {
-    setCompanyId(ticket.company?.id ?? '');
+    setCompanyId(ticket.company?.id ?? ticket.companyId ?? '');
+    setDistributorId(ticket.device?.distributor?.id ?? '');
+    setDeviceId(ticket.device?.id ?? ticket.deviceId ?? '');
+    setReportedBy(ticket.reportedBy ?? ticket.company?.name ?? '');
     setContactId(ticket.contact?.id ?? '');
     setAssigneeId(ticket.assignee?.id ?? '');
-  }, [ticket.id, ticket.company?.id, ticket.contact?.id, ticket.assignee?.id]);
+  }, [
+    ticket.id,
+    ticket.company?.id,
+    ticket.companyId,
+    ticket.device?.id,
+    ticket.deviceId,
+    ticket.device?.distributor?.id,
+    ticket.contact?.id,
+    ticket.assignee?.id,
+    ticket.reportedBy,
+    ticket.company?.name,
+  ]);
 
   const inputClass =
     'w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100';
@@ -576,6 +603,8 @@ function TicketEditForm({
           status: (fd.get('status') as string) || undefined,
           type: (fd.get('type') as string) || undefined,
           companyId: companyId || null,
+          deviceId: deviceId || null,
+          reportedBy: reportedBy.trim() || null,
           contactId: contactId || null,
           assigneeId: assigneeId === 'unassigned' ? null : assigneeId || null,
           callOccurredAt: (fd.get('callOccurredAt') as string) ? new Date((fd.get('callOccurredAt') as string)).toISOString() : null,
@@ -584,7 +613,6 @@ function TicketEditForm({
           contactsContactedCount: (fd.get('contactsContactedCount') as string)?.trim()
             ? parseInt(String(fd.get('contactsContactedCount')), 10)
             : null,
-          reportedBy: (fd.get('reportedBy') as string)?.trim() || null,
           putIAngazovanje: putRows.length ? putRows : null,
           tokPrijave: (fd.get('tokPrijave') as string)?.trim() || null,
           zakljucak: (fd.get('zakljucak') as string)?.trim() || null,
@@ -618,6 +646,17 @@ function TicketEditForm({
           <label className={labelClass}>Opis / Description</label>
           <textarea name="description" rows={4} defaultValue={ticket.description ?? ''} className={inputClass} />
         </div>
+        <div className="sm:col-span-2">
+          <TicketEntityPickers
+            companyId={companyId}
+            onCompanyId={setCompanyId}
+            distributorId={distributorId}
+            onDistributorId={setDistributorId}
+            deviceId={deviceId}
+            onDeviceId={setDeviceId}
+            onCompanyName={setReportedBy}
+          />
+        </div>
         {!isManualTicket && (
           <>
             <div>
@@ -637,17 +676,6 @@ function TicketEditForm({
                 <option value="FIELD">FIELD</option>
                 <option value="OTHER">OTHER</option>
               </select>
-            </div>
-            <div>
-              <label className={labelClass}>Kompanija</label>
-              <SearchableSelect
-                value={companyId}
-                onChange={setCompanyId}
-                options={companyOptions}
-                placeholder="—"
-                searchPlaceholder="Pretraži..."
-                className="w-full"
-              />
             </div>
             <div>
               <label className={labelClass}>Kontakt</label>
@@ -718,15 +746,6 @@ function TicketEditForm({
         )}
         {!isQuickTicket && (
           <>
-            <div className="sm:col-span-2">
-              <label className={labelClass}>Ko je prijavio (reportedBy)</label>
-              <input
-                type="text"
-                name="reportedBy"
-                defaultValue={ticket.reportedBy ?? ''}
-                className={inputClass}
-              />
-            </div>
             <div className="sm:col-span-2">
               <label className={labelClass}>Put i angažovanje (jedan red po liniji)</label>
               <textarea
