@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useToast } from '@/components/toast';
 import { CreateTicketModal } from '@/components/create-ticket-modal';
 import { SearchableSelect } from '@/components/searchable-select';
 
@@ -43,6 +44,8 @@ function userLabel(u: { displayName: string | null; email: string } | null) {
 }
 
 export default function TicketsPage() {
+  const queryClient = useQueryClient();
+  const { showError } = useToast();
   const [status, setStatus] = useState<string>('');
   const [type, setType] = useState<string>('');
   const [assigneeId, setAssigneeId] = useState<string>('');
@@ -100,6 +103,30 @@ export default function TicketsPage() {
       return res.data;
     },
   });
+
+  const deleteTicket = useMutation({
+    mutationFn: (ticketId: string) => api.delete(`/tickets/${ticketId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+    onError: (e: unknown) => {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Brisanje tiketa nije uspelo.';
+      showError(msg);
+    },
+  });
+
+  const handleDelete = (t: Ticket) => {
+    if (
+      !window.confirm(
+        `Obrisati tiket ${t.key} – "${t.title}"?\nOva radnja se ne može poništiti.`,
+      )
+    ) {
+      return;
+    }
+    deleteTicket.mutate(t.id);
+  };
 
   return (
     <div>
@@ -248,7 +275,7 @@ export default function TicketsPage() {
                   <th className="px-4 py-2 font-medium">Created by</th>
                   <th className="px-4 py-2 font-medium">Created</th>
                   <th className="px-4 py-2 font-medium">Updated</th>
-                  <th className="px-4 py-2 font-medium">Edit</th>
+                  <th className="px-4 py-2 font-medium">Akcije</th>
                 </tr>
               </thead>
               <tbody>
@@ -290,12 +317,22 @@ export default function TicketsPage() {
                       {new Date(t.updatedAt).toLocaleString()}
                     </td>
                     <td className="px-4 py-2">
-                      <Link
-                        href={`/tickets/${t.id}`}
-                        className="text-emerald-600 hover:underline dark:text-emerald-400"
-                      >
-                        Edit
-                      </Link>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Link
+                          href={`/tickets/${t.id}`}
+                          className="text-emerald-600 hover:underline dark:text-emerald-400"
+                        >
+                          Edit
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(t)}
+                          disabled={deleteTicket.isPending}
+                          className="text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                        >
+                          Obriši
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

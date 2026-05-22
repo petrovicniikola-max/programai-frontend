@@ -191,6 +191,31 @@ export default function TicketDetailPage({
       showError((e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed'),
   });
 
+  const deleteTicketMutation = useMutation({
+    mutationFn: () => api.delete(`/tickets/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      router.push('/tickets');
+    },
+    onError: (e: unknown) =>
+      showError(
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          'Brisanje tiketa nije uspelo.',
+      ),
+  });
+
+  const handleDeleteTicket = () => {
+    if (!ticket) return;
+    if (
+      !window.confirm(
+        `Obrisati tiket ${ticket.key} – "${ticket.title}"?\nOva radnja se ne može poništiti.`,
+      )
+    ) {
+      return;
+    }
+    deleteTicketMutation.mutate();
+  };
+
   const addComment = useMutation({
     mutationFn: (body: string) =>
       api.post(`/tickets/${id}/comments`, { body }),
@@ -370,6 +395,8 @@ export default function TicketDetailPage({
             saving={updateTicketMutation.isPending}
             onBack={() => router.push('/tickets')}
             onPrint={handlePrint}
+            onDelete={handleDeleteTicket}
+            deleting={deleteTicketMutation.isPending}
           />
         </section>
 
@@ -492,6 +519,8 @@ function TicketEditForm({
   saving,
   onBack,
   onPrint,
+  onDelete,
+  deleting,
 }: {
   ticket: TicketDetail;
   companies: { id: string; name: string }[];
@@ -501,6 +530,8 @@ function TicketEditForm({
   saving: boolean;
   onBack: () => void;
   onPrint: () => void;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
   const [companyId, setCompanyId] = useState(ticket.company?.id ?? '');
   const [contactId, setContactId] = useState(ticket.contact?.id ?? '');
@@ -747,16 +778,29 @@ function TicketEditForm({
         )}
       </div>
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || deleting}
           className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {saving ? 'Čuvanje…' : 'Sačuvaj'}
         </button>
-        <button type="button" onClick={onBack} className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200">
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={deleting}
+          className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200"
+        >
           Nazad
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={saving || deleting}
+          className="ml-auto rounded border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-950/30"
+        >
+          {deleting ? 'Brisanje…' : 'Obriši tiket'}
         </button>
       </div>
     </form>
