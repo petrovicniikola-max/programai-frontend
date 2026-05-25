@@ -65,6 +65,9 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 api.interceptors.request.use((config) => {
+  if (config.data instanceof FormData && config.headers) {
+    delete config.headers['Content-Type'];
+  }
   if (!process.env.NEXT_PUBLIC_API_BASE_URL && typeof window !== 'undefined' && !baseUrlWarned) {
     // Dev-only warning so it's obvious where backend URL dolazi
     // eslint-disable-next-line no-console

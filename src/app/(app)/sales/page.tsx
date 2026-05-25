@@ -147,6 +147,10 @@ export default function SalesPage() {
   const [directoryPage, setDirectoryPage] = useState(1);
   const [directoryFilterField, setDirectoryFilterField] = useState('all');
   const [directoryFilterValue, setDirectoryFilterValue] = useState('');
+  const [directorySortBy, setDirectorySortBy] = useState<'createdAt' | 'establishedAt'>('createdAt');
+  const [directorySortOrder, setDirectorySortOrder] = useState<'asc' | 'desc'>('desc');
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<'csv' | 'xlsx'>('csv');
   const [exportDateFrom, setExportDateFrom] = useState('');
@@ -181,11 +185,21 @@ export default function SalesPage() {
     isLoading: directoryLoading,
     error: directoryError,
   } = useQuery({
-    queryKey: ['sales', 'directory', directoryPage, directoryFilterField, directoryFilterValue],
+    queryKey: [
+      'sales',
+      'directory',
+      directoryPage,
+      directoryFilterField,
+      directoryFilterValue,
+      directorySortBy,
+      directorySortOrder,
+    ],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set('page', String(directoryPage));
       params.set('limit', '50');
+      params.set('sortBy', directorySortBy);
+      params.set('sortOrder', directorySortOrder);
       if (directoryFilterValue.trim()) {
         params.set('filterValue', directoryFilterValue.trim());
         if (directoryFilterField !== 'all') params.set('filterField', directoryFilterField);
@@ -200,13 +214,40 @@ export default function SalesPage() {
     mutationFn: async (file: File) => {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await api.post('/sales/import-rows/import', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const res = await api.post<{
+        imported: number;
+        skipped: number;
+        totalRows: number;
+        errors?: { row: number; message: string }[];
+      }>('/sales/import-rows/import', fd);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setImportError(null);
+      const errHint =
+        result.errors && result.errors.length > 0
+          ? ` (${result.errors.length} grešaka u fajlu)`
+          : '';
+      setImportMessage(
+        `Import završen: ubačeno/ažurirano ${result.imported}, preskočeno ${result.skipped} od ${result.totalRows}.${errHint}`,
+      );
       queryClient.invalidateQueries({ queryKey: ['sales', 'directory'] });
+    },
+    onError: (err: unknown) => {
+      setImportMessage(null);
+      const msg =
+        err &&
+        typeof err === 'object' &&
+        'response' in err &&
+        err.response &&
+        typeof err.response === 'object' &&
+        'data' in err.response &&
+        err.response.data &&
+        typeof err.response.data === 'object' &&
+        'message' in err.response.data
+          ? String((err.response.data as { message: unknown }).message)
+          : 'Import nije uspeo. Proveri format fajla (.csv, .xlsx) i da prvi red sadrži zaglavlja.';
+      setImportError(msg);
     },
   });
 
@@ -287,7 +328,11 @@ export default function SalesPage() {
             />
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                setImportMessage(null);
+                setImportError(null);
+                fileInputRef.current?.click();
+              }}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
             >
               {importMutation.isPending ? 'Importujem…' : 'Import'}
@@ -456,7 +501,37 @@ export default function SalesPage() {
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Tabela za mailove i pozive. Podržan je import u formatima CSV i XLSX (sa bojama polja iz XLSX fajla).
           </p>
+          {(importMessage || importError) && (
+            <p
+              className={`mt-2 text-sm ${importError ? 'text-red-600 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}
+            >
+              {importError ?? importMessage}
+            </p>
+          )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label className="text-sm text-zinc-600 dark:text-zinc-400">Sortiraj po</label>
+            <select
+              value={directorySortBy}
+              onChange={(e) => {
+                setDirectorySortBy(e.target.value as 'createdAt' | 'establishedAt');
+                setDirectoryPage(1);
+              }}
+              className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+            >
+              <option value="createdAt">Datum ubacivanja</option>
+              <option value="establishedAt">Datum osnivanja</option>
+            </select>
+            <select
+              value={directorySortOrder}
+              onChange={(e) => {
+                setDirectorySortOrder(e.target.value as 'asc' | 'desc');
+                setDirectoryPage(1);
+              }}
+              className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+            >
+              <option value="desc">Najnoviji prvo</option>
+              <option value="asc">Najstariji prvo</option>
+            </select>
             <label className="text-sm text-zinc-600 dark:text-zinc-400">Filter</label>
             <select
               value={directoryFilterField}
