@@ -16,6 +16,7 @@ type SoldDeviceRow = {
   name: string | null;
   licenceName: string;
   months: number;
+  bonusAmount: number;
   description: string | null;
   createdAt: string;
   enteredBy: string;
@@ -50,6 +51,14 @@ function monthLabel(key: string): string {
     year: 'numeric',
   });
   return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function fmtMoney(value: number): string {
+  return `${new Intl.NumberFormat('sr-RS', { maximumFractionDigits: 2 }).format(value)} din`;
+}
+
+function sumBonus(items: SoldDeviceRow[]): number {
+  return items.reduce((sum, row) => sum + (row.bonusAmount || 0), 0);
 }
 
 function csvCell(value: string): string {
@@ -166,13 +175,27 @@ export default function SoldDevicesPage() {
     },
   });
 
+  const bonusSum = sumBonus(visibleRows);
+  const bonusShare = bonusSum / 3;
+
   function exportCsv() {
-    const header = ['SN', 'Naziv', 'Licenca', 'Meseci', 'Opis', 'Uneo', 'Datum'];
+    const header = ['SN', 'Naziv', 'Licenca', 'Meseci', 'Bonus', 'Opis', 'Uneo', 'Datum'];
     const lines = visibleRows.map((row) =>
-      [row.serialNo, row.name ?? '', row.licenceName, String(row.months), row.description ?? '', row.enteredBy, fmtDate(row.createdAt)]
+      [
+        row.serialNo,
+        row.name ?? '',
+        row.licenceName,
+        String(row.months),
+        String(row.bonusAmount || 0),
+        row.description ?? '',
+        row.enteredBy,
+        fmtDate(row.createdAt),
+      ]
         .map(csvCell)
         .join(';'),
     );
+    lines.push(['', '', '', 'Suma', String(bonusSum), '', '', ''].map(csvCell).join(';'));
+    lines.push(['', '', '', 'Deo (/3)', String(bonusShare), '', '', ''].map(csvCell).join(';'));
     const blob = new Blob([`\uFEFF${header.join(';')}\n${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -212,7 +235,8 @@ export default function SoldDevicesPage() {
             }`}
           >
             {txt('soldDevices.summary.all')}
-            <span className="mt-1 block text-lg font-semibold">{rows.length}</span>
+            <span className="mt-1 block text-lg font-semibold">{fmtMoney(sumBonus(rows))}</span>
+            <span className="block text-xs text-zinc-500 dark:text-zinc-400">{rows.length} unosa</span>
           </button>
           {monthGroups.map(([key, group]) => (
             <button
@@ -226,7 +250,10 @@ export default function SoldDevicesPage() {
               }`}
             >
               <span className="font-medium">{monthLabel(key)}</span>
-              <span className="mt-1 block text-lg font-semibold">{group.length}</span>
+              <span className="mt-1 block text-lg font-semibold">{fmtMoney(sumBonus(group))}</span>
+              <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                {group.length} unosa · {txt('soldDevices.summary.share')} {fmtMoney(sumBonus(group) / 3)}
+              </span>
               <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
                 {MONTH_OPTIONS.map((monthsOption) => {
                   const count = group.filter((row) => row.months === monthsOption).length;
@@ -363,6 +390,7 @@ export default function SoldDevicesPage() {
               <th className="px-3 py-2">{txt('soldDevices.th.name')}</th>
               <th className="px-3 py-2">{txt('soldDevices.th.licence')}</th>
               <th className="px-3 py-2">{txt('soldDevices.th.months')}</th>
+              <th className="px-3 py-2">{txt('soldDevices.th.bonus')}</th>
               <th className="px-3 py-2">{txt('soldDevices.th.description')}</th>
               <th className="px-3 py-2">{txt('soldDevices.th.enteredBy')}</th>
               <th className="px-3 py-2">{txt('soldDevices.th.date')}</th>
@@ -376,6 +404,7 @@ export default function SoldDevicesPage() {
                 <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">{row.name || '—'}</td>
                 <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">{row.licenceName}</td>
                 <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">{row.months}</td>
+                <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">{fmtMoney(row.bonusAmount || 0)}</td>
                 <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">{row.description || '—'}</td>
                 <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">{row.enteredBy}</td>
                 <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">{fmtDate(row.createdAt)}</td>
@@ -389,6 +418,19 @@ export default function SoldDevicesPage() {
               </tr>
             ))}
           </tbody>
+          {visibleRows.length > 0 && (
+            <tfoot className="border-t border-zinc-300 bg-zinc-50 font-medium text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50">
+              <tr>
+                <td className="px-3 py-2" colSpan={4}>
+                  {txt('soldDevices.summary.total')}
+                </td>
+                <td className="px-3 py-2">{fmtMoney(bonusSum)}</td>
+                <td className="px-3 py-2" colSpan={canChange ? 4 : 3}>
+                  {txt('soldDevices.summary.share')}: {fmtMoney(bonusShare)}
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
         {list.data && visibleRows.length === 0 && (
           <p className="px-3 py-3 text-sm text-zinc-500">{txt('soldDevices.empty')}</p>
