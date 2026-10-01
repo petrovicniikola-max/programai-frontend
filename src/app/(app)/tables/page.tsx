@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useTexts } from '@/lib/use-texts';
 
 interface FormItem {
   id: string;
@@ -16,6 +17,7 @@ interface FormsResponse {
 }
 
 export default function TablesPage() {
+  const txt = useTexts();
   const { data, isLoading } = useQuery({
     queryKey: ['forms'],
     queryFn: async () => {
@@ -28,12 +30,10 @@ export default function TablesPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Tables</h1>
-      <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-        Choose a form to view pivot table (questions × submissions).
-      </p>
+      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{txt('tables.title')}</h1>
+      <p className="mt-2 text-zinc-600 dark:text-zinc-400">{txt('tables.description')}</p>
       {isLoading ? (
-        <p className="mt-4 text-sm text-zinc-500">Loading…</p>
+        <p className="mt-4 text-sm text-zinc-500">{txt('tables.loading')}</p>
       ) : (
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {forms.map((f) => (
@@ -49,7 +49,7 @@ export default function TablesPage() {
         </div>
       )}
       {!isLoading && forms.length === 0 && (
-        <p className="mt-4 text-sm text-zinc-500">No forms. Create one under Forms.</p>
+        <p className="mt-4 text-sm text-zinc-500">{txt('tables.empty')}</p>
       )}
     </div>
   );

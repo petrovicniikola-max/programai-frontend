@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { getReportsOverview } from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 
 const STATUS_LABELS: Record<string, string> = {
   OPEN: 'Open',
@@ -43,6 +44,9 @@ function Card({
 }
 
 export default function ReportsOverviewPage() {
+  const { user, canView } = usePermissions();
+  const canViewLicences = canView('licences');
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['reports', 'overview'],
     queryFn: getReportsOverview,
@@ -74,7 +78,7 @@ export default function ReportsOverviewPage() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`grid gap-4 sm:grid-cols-2 ${canViewLicences ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
         <Card
           title="Companies"
           value={data?.companiesCount ?? '—'}
@@ -86,11 +90,13 @@ export default function ReportsOverviewPage() {
           value={data?.activeDevices ?? '—'}
           href="/devices"
         />
+        {canViewLicences && (
         <Card
           title="Active licences"
           value={data?.activeLicences ?? '—'}
           href="/licences"
         />
+        )}
         <Card
           title="Total tickets"
           value={totalTickets}
@@ -131,6 +137,7 @@ export default function ReportsOverviewPage() {
         </div>
       </div>
 
+      {canViewLicences && (
       <div>
         <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
           Licences expiring soon
@@ -162,6 +169,7 @@ export default function ReportsOverviewPage() {
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

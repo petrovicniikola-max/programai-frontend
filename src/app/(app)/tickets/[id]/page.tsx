@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type Device, type Licence } from '@/lib/api';
 import { useToast } from '@/components/toast';
+import { usePermissions } from '@/hooks/use-permissions';
 import { SearchableSelect } from '@/components/searchable-select';
 import { TicketEntityPickers } from '@/components/ticket-entity-pickers';
 
@@ -71,6 +72,7 @@ export default function TicketDetailPage({
   const router = useRouter();
   const queryClient = useQueryClient();
   const { showError } = useToast();
+  const { canEdit: canEditPerm } = usePermissions();
 
   const { data: ticket, isLoading, error } = useQuery({
     queryKey: ['ticket', id],
@@ -110,6 +112,14 @@ export default function TicketDetailPage({
     enabled: !!ticket?.company?.id,
   });
 
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; role: string }>('/auth/me');
+      return res.data;
+    },
+  });
+
   const { data: relatedLicences = [] } = useQuery({
     queryKey: ['ticket', id, 'licences', ticket?.company?.id],
     queryFn: async () => {
@@ -123,15 +133,7 @@ export default function TicketDetailPage({
       });
       return res.data ?? [];
     },
-    enabled: !!ticket?.company?.id,
-  });
-
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: async () => {
-      const res = await api.get<{ id: string; role: string }>('/auth/me');
-      return res.data;
-    },
+    enabled: !!ticket?.company?.id && me?.role === 'SUPER_ADMIN',
   });
 
   const { data: allTags = [] } = useQuery({
@@ -305,7 +307,7 @@ export default function TicketDetailPage({
     );
   }
 
-  const canEdit = true;
+  const canEdit = canEditPerm('tickets');
 
   const handlePrint = () => {
     window.print();
@@ -490,6 +492,7 @@ export default function TicketDetailPage({
           )}
         </section>
 
+        {me?.role === 'SUPER_ADMIN' && (
         <section className="rounded-lg border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
           <h2 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">Licence (kompanija)</h2>
           {relatedLicences.length === 0 ? (
@@ -510,6 +513,7 @@ export default function TicketDetailPage({
             </ul>
           )}
         </section>
+        )}
       </div>
     </div>
   );

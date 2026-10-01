@@ -122,10 +122,25 @@ export interface User {
   id: string;
   email: string;
   displayName?: string;
-  role: 'SUPER_ADMIN' | 'SUPPORT' | 'SALES' | 'USER';
+  role: 'SUPER_ADMIN' | 'SUPPORT' | 'SALES' | 'USER' | 'ACCOUNTANT' | string;
+  roleId?: string | null;
+  roleName?: string | null;
+  permissions?: Record<string, { view: boolean; edit: boolean }>;
+  permissionsVersion?: number;
   tenantId: string | null;
   isPlatformAdmin?: boolean;
   isPlatformImpersonation?: boolean;
+  avatarUrl?: string | null;
+  jobTitle?: string | null;
+}
+
+export interface TenantUser {
+  id: string;
+  email: string;
+  displayName: string | null;
+  role: 'SUPER_ADMIN' | 'SUPPORT' | 'SALES' | 'USER' | 'ACCOUNTANT';
+  isActive: boolean;
+  createdAt: string;
 }
 
 export interface LoginResponse {
@@ -148,12 +163,17 @@ export interface Distributor {
   createdAt: string;
   updatedAt: string;
   _count?: { devices: number };
+  // computed fields for main/sub distributor views
+  totalDevices?: number;
+  mainName?: string;
+  subName?: string | null;
 }
 
 export interface Device {
   id: string;
   companyId: string | null;
   distributorId?: string | null;
+  subDistributorName?: string | null;
   name: string | null;
   model: string | null;
   serialNo: string | null;
@@ -234,9 +254,263 @@ export interface ReportsOverview {
   companiesCount: number;
 }
 
+export interface AdminDashboardSlice {
+  label: string;
+  value: number;
+}
+
+export interface AdminPackageRow {
+  productName: string;
+  total: number;
+}
+
+export interface AdminDeviceModelRow {
+  model: string;
+  total: number;
+  assigned: number;
+  available: number;
+  withDistributor: number;
+  activeLicence: number;
+  updated48h: number;
+}
+
+export interface AdminDashboardDto {
+  generatedAt: string;
+  summary: {
+    companies: number;
+    distributors: number;
+    activeDevices: number;
+    activeLicences: number;
+    expiredLicences: number;
+    ticketsOpen: number;
+  };
+  byDistributor: AdminDashboardSlice[];
+  byModel: AdminDashboardSlice[];
+  licenceCoverage: AdminDashboardSlice[];
+  sufProduction: AdminDashboardSlice[];
+  activePackages: AdminPackageRow[];
+  devicesByModel: AdminDeviceModelRow[];
+}
+
 export async function getReportsOverview(): Promise<ReportsOverview> {
   const res = await api.get<ReportsOverview>('/reports/overview');
   return res.data;
+}
+
+export async function getAdminDashboard(): Promise<AdminDashboardDto> {
+  const res = await api.get<AdminDashboardDto>('/reports/admin-dashboard');
+  return res.data;
+}
+
+export type DashboardWidgetWidth = 'full' | 'half';
+
+export interface DashboardWidgetConfig {
+  id: string;
+  visible: boolean;
+  width: DashboardWidgetWidth;
+}
+
+export interface DashboardLayout {
+  widgets: DashboardWidgetConfig[];
+}
+
+export async function getDashboardLayout(): Promise<DashboardLayout | null> {
+  const res = await api.get<{ layout: DashboardLayout | null }>('/auth/dashboard-layout');
+  return res.data?.layout ?? null;
+}
+
+export async function saveDashboardLayout(layout: DashboardLayout): Promise<DashboardLayout | null> {
+  const res = await api.put<{ layout: DashboardLayout | null }>('/auth/dashboard-layout', layout);
+  return res.data?.layout ?? null;
+}
+
+// Projects
+
+export interface ProjectAssignment {
+  userId: string;
+  user?: { id: string; email: string; displayName: string | null };
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string | null;
+  companyId?: string | null;
+  distributorId?: string | null;
+  company?: { id: string; name: string } | null;
+  distributor?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+  assignments?: ProjectAssignment[];
+}
+
+export type ProjectWorkOrderType = 'REKLAMACIJA' | 'IMPLEMENTACIJA';
+
+export interface ProjectWorkOrderLine {
+  id: string;
+  code: string;
+  productName: string;
+  unit: string;
+  quantity: number;
+  price: number;
+  priceWithVat: number;
+  sortOrder: number;
+}
+
+export interface WorkOrderArticle {
+  code: string;
+  productName: string;
+  unit: string;
+  price: number;
+  priceWithVat: number;
+}
+
+export interface ProjectWorkOrder {
+  id: string;
+  projectId: string;
+  userId: string;
+  title: string;
+  description: string | null;
+  type: ProjectWorkOrderType | null;
+  contractNumber: string | null;
+  requestedWork: string | null;
+  performedWork: string | null;
+  hours: number;
+  workDate: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: { id: string; email: string; displayName: string | null };
+  lines?: ProjectWorkOrderLine[];
+}
+
+export type CreateWorkOrderPayload = {
+  title: string;
+  description?: string;
+  type: ProjectWorkOrderType;
+  contractNumber?: string;
+  requestedWork?: string;
+  performedWork?: string;
+  workDate?: string;
+  today?: boolean;
+  lines: { code: string; quantity: number }[];
+};
+
+export type UpdateWorkOrderPayload = {
+  title?: string;
+  description?: string;
+  type?: ProjectWorkOrderType;
+  contractNumber?: string;
+  requestedWork?: string;
+  performedWork?: string;
+  workDate?: string;
+  lines?: { code: string; quantity: number }[];
+};
+
+export interface ProjectStats {
+  totalHours: number;
+  hoursByUser: { userId: string; email: string; displayName: string | null; hours: number }[];
+}
+
+export async function getTenantUsers(): Promise<TenantUser[]> {
+  const res = await api.get<TenantUser[]>('/settings/users');
+  return res.data ?? [];
+}
+
+export async function getProjects(): Promise<Project[]> {
+  const res = await api.get<Project[]>('/projects');
+  return res.data ?? [];
+}
+
+export async function getProject(id: string): Promise<Project> {
+  const res = await api.get<Project>(`/projects/${id}`);
+  return res.data;
+}
+
+export async function createProject(dto: {
+  name: string;
+  startDate: string;
+  endDate?: string | null;
+  assignedUserIds?: string[];
+  companyId?: string | null;
+  distributorId?: string | null;
+}): Promise<Project> {
+  const res = await api.post<Project>('/projects', dto);
+  return res.data;
+}
+
+export async function updateProject(
+  id: string,
+  dto: {
+    name?: string;
+    startDate?: string;
+    endDate?: string | null;
+    assignedUserIds?: string[];
+    companyId?: string | null;
+    distributorId?: string | null;
+  },
+): Promise<Project> {
+  const res = await api.patch<Project>(`/projects/${id}`, dto);
+  return res.data;
+}
+
+export async function deleteProject(id: string): Promise<{ ok: true }> {
+  const res = await api.delete<{ ok: true }>(`/projects/${id}`);
+  return res.data;
+}
+
+export async function getProjectWorkOrders(projectId: string): Promise<ProjectWorkOrder[]> {
+  const res = await api.get<ProjectWorkOrder[]>(`/projects/${projectId}/work-orders`);
+  return res.data ?? [];
+}
+
+export async function getWorkOrderArticles(): Promise<WorkOrderArticle[]> {
+  const res = await api.get<WorkOrderArticle[]>('/projects/work-order-articles');
+  return res.data ?? [];
+}
+
+export async function createProjectWorkOrder(
+  projectId: string,
+  dto: CreateWorkOrderPayload,
+): Promise<ProjectWorkOrder> {
+  const res = await api.post<ProjectWorkOrder>(`/projects/${projectId}/work-orders`, dto);
+  return res.data;
+}
+
+export async function updateWorkOrder(
+  id: string,
+  dto: UpdateWorkOrderPayload,
+): Promise<ProjectWorkOrder> {
+  const res = await api.patch<ProjectWorkOrder>(`/work-orders/${id}`, dto);
+  return res.data;
+}
+
+export async function deleteWorkOrder(id: string): Promise<{ ok: true }> {
+  const res = await api.delete<{ ok: true }>(`/work-orders/${id}`);
+  return res.data;
+}
+
+export async function getProjectStats(projectId: string): Promise<ProjectStats> {
+  const res = await api.get<ProjectStats>(`/projects/${projectId}/stats`);
+  return res.data;
+}
+
+export async function exportProjectWorkOrdersXlsx(projectId: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${baseURL}/projects/${projectId}/work-orders/export?format=xlsx`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error('Export failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const ts = new Date().toISOString().replace('T', '_').slice(0, 19).replaceAll(':', '-');
+  a.download = `radni-nalozi-${projectId}-${ts}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 

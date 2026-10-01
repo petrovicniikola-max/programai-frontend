@@ -9,13 +9,24 @@ import { getToken } from '@/lib/auth';
 import { ImportDevicesModal } from '@/components/import-devices-modal';
 import { useToast } from '@/components/toast';
 import { DEVICES_ENDPOINT } from '@/lib/endpoints';
+import { useTexts } from '@/lib/use-texts';
 
 const baseURL =
   typeof window !== 'undefined'
     ? process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
     : 'http://localhost:3001';
 
+function splitDistributorName(name?: string | null): { main: string; sub: string | null } {
+  const n = (name ?? '').trim();
+  const idx = n.indexOf('/');
+  if (idx === -1) return { main: n, sub: null };
+  const main = n.slice(0, idx).trim();
+  const sub = n.slice(idx + 1).trim();
+  return { main, sub: sub || null };
+}
+
 function DevicesPageInner() {
+  const t = useTexts();
   const searchParams = useSearchParams();
   const companyIdFromUrl = searchParams.get('companyId') ?? '';
   const distributorIdFromUrl = searchParams.get('distributorId') ?? '';
@@ -60,6 +71,10 @@ function DevicesPageInner() {
 
   const devices = data ?? [];
 
+  const selectedDistributorName =
+    distributors.find((d) => d.id === distributorFilter)?.name ?? '';
+  const selectedIsMain = !!selectedDistributorName && !selectedDistributorName.includes('/');
+
   async function exportCsv() {
     try {
       const token = getToken();
@@ -99,9 +114,9 @@ function DevicesPageInner() {
     <div>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Devices</h1>
+          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{t('devices.title')}</h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Lista uređaja. Pretraga po serijskom broju, nazivu, kompaniji ili distributeru.
+            {t('devices.description')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -110,20 +125,20 @@ function DevicesPageInner() {
             onClick={exportCsv}
             className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-600 dark:text-zinc-200"
           >
-            Export CSV
+            {t('devices.btn.exportCsv')}
           </button>
           <button
             type="button"
             onClick={() => setImportModalOpen(true)}
             className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-600 dark:text-zinc-200"
           >
-            Import
+            {t('devices.btn.import')}
           </button>
           <Link
             href="/devices/add"
             className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
           >
-            Dodaj novi uređaj
+            {t('devices.btn.addNew')}
           </Link>
         </div>
       </div>
@@ -131,7 +146,7 @@ function DevicesPageInner() {
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <input
           type="text"
-          placeholder="Pretraži…"
+          placeholder={t('devices.input.search.placeholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full max-w-xs rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
@@ -141,7 +156,7 @@ function DevicesPageInner() {
           onChange={(e) => setDistributorFilter(e.target.value)}
           className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
         >
-          <option value="">Svi distributeri</option>
+          <option value="">{t('devices.select.distributor.all')}</option>
           {distributors.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
@@ -154,7 +169,7 @@ function DevicesPageInner() {
             onClick={() => setDistributorFilter('')}
             className="text-sm text-zinc-600 hover:underline dark:text-zinc-400"
           >
-            Poništi filter
+            {t('devices.btn.clearFilter')}
           </button>
         )}
       </div>
@@ -169,15 +184,16 @@ function DevicesPageInner() {
           <table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-700">
             <thead className="bg-zinc-50 dark:bg-zinc-800/50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Name</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Model</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Serial</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Company</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Distributer</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Status</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Updated</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('devices.th.name')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('devices.th.model')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('devices.th.serial')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('devices.th.company')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('devices.th.distributor')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('devices.th.subDistributor')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('devices.th.status')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('devices.th.updated')}</th>
                 {canEdit && (
-                  <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Actions</th>
+                  <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('devices.th.actions')}</th>
                 )}
               </tr>
             </thead>
@@ -189,7 +205,18 @@ function DevicesPageInner() {
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{d.serialNo ?? '—'}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{d.company?.name ?? '—'}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
-                    {d.distributor?.name ?? '—'}
+                    {(() => {
+                      const full = d.distributor?.name ?? '';
+                      if (!full) return '—';
+                      if (!selectedIsMain) return full;
+                      const { sub } = splitDistributorName(full);
+                      return sub ?? full;
+                    })()}
+                  </td>
+                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
+                    {d.subDistributorName ??
+                      (selectedIsMain ? splitDistributorName(d.distributor?.name ?? '').sub : null) ??
+                      '—'}
                   </td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{d.status}</td>
                   <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
@@ -209,8 +236,8 @@ function DevicesPageInner() {
               ))}
               {devices.length === 0 && (
                 <tr>
-                  <td colSpan={canEdit ? 8 : 7} className="px-4 py-3 text-center text-sm text-zinc-500">
-                    No devices found.
+                  <td colSpan={canEdit ? 9 : 8} className="px-4 py-3 text-center text-sm text-zinc-500">
+                    {t('devices.empty')}
                   </td>
                 </tr>
               )}

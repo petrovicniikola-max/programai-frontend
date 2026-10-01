@@ -15,8 +15,14 @@ function applyTheme(theme: 'light' | 'dark') {
   const root = document.documentElement;
   if (theme === 'dark') {
     root.classList.add('dark');
+    root.style.colorScheme = 'dark';
+    root.style.setProperty('--background', '#09090b');
+    root.style.setProperty('--foreground', '#fafafa');
   } else {
     root.classList.remove('dark');
+    root.style.colorScheme = 'light';
+    root.style.setProperty('--background', '#fafafa');
+    root.style.setProperty('--foreground', '#18181b');
   }
   try {
     localStorage.setItem(STORAGE_KEY, theme);

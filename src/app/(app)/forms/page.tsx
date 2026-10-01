@@ -6,6 +6,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type User } from '@/lib/api';
 import { Modal } from '@/components/modal';
 import { useToast } from '@/components/toast';
+import { canEditResource } from '@/lib/permissions';
+import { useTexts } from '@/lib/use-texts';
 
 interface FormItem {
   id: string;
@@ -22,11 +24,13 @@ interface FormsResponse {
   limit: number;
 }
 
-const canEditForms = (role: string) => role === 'SUPER_ADMIN' || role === 'SALES';
+const canEditForms = (user?: User | null) =>
+  canEditResource(user?.permissions, 'forms', user?.role);
 
 export default function FormsPage() {
   const queryClient = useQueryClient();
   const { showError } = useToast();
+  const txt = useTexts();
   const [createOpen, setCreateOpen] = useState(false);
   const [sendLinkForm, setSendLinkForm] = useState<FormItem | null>(null);
 
@@ -116,14 +120,12 @@ export default function FormsPage() {
     },
   });
 
-  const canEdit = canEditForms(user?.role ?? '');
+  const canEdit = canEditForms(user);
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Forms</h1>
-      <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-        Create forms, add questions, publish and view submissions.
-      </p>
+      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{txt('forms.title')}</h1>
+      <p className="mt-2 text-zinc-600 dark:text-zinc-400">{txt('forms.description')}</p>
       {canEdit && (
         <div className="mt-4 flex justify-end">
           <button
@@ -136,7 +138,7 @@ export default function FormsPage() {
         </div>
       )}
       {isLoading ? (
-        <p className="mt-4 text-sm text-zinc-500">Loading…</p>
+        <p className="mt-4 text-sm text-zinc-500">{txt('forms.loading')}</p>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
           <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -221,11 +223,11 @@ export default function FormsPage() {
             </tbody>
           </table>
           {(!data?.items?.length) && (
-            <p className="p-4 text-center text-sm text-zinc-500">No forms yet.</p>
+            <p className="p-4 text-center text-sm text-zinc-500">{txt('forms.empty')}</p>
           )}
         </div>
       )}
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Create form">
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title={txt('forms.modal.create')}>
         <CreateFormForm
           onSubmit={(d) => createForm.mutate(d)}
           onCancel={() => setCreateOpen(false)}

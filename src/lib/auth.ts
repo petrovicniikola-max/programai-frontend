@@ -1,3 +1,5 @@
+import { clearSessionCache } from './session-cache';
+
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const PLATFORM_ACCESS_TOKEN_KEY = 'platform_access_token';
@@ -33,6 +35,7 @@ export function clearToken(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(PLATFORM_ACCESS_TOKEN_KEY);
   localStorage.removeItem(IMPERSONATION_FLAG_KEY);
+  clearSessionCache();
 }
 
 export function startImpersonation(impersonationToken: string): void {
@@ -43,6 +46,7 @@ export function startImpersonation(impersonationToken: string): void {
   }
   localStorage.setItem(ACCESS_TOKEN_KEY, impersonationToken);
   localStorage.setItem(IMPERSONATION_FLAG_KEY, 'true');
+  clearSessionCache();
 }
 
 export function stopImpersonation(): void {
@@ -55,6 +59,7 @@ export function stopImpersonation(): void {
   }
   localStorage.removeItem(PLATFORM_ACCESS_TOKEN_KEY);
   localStorage.removeItem(IMPERSONATION_FLAG_KEY);
+  clearSessionCache();
 }
 
 export function isImpersonating(): boolean {

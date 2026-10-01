@@ -3,8 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { getLicences, type Licence } from '@/lib/api';
-import { api } from '@/lib/api';
+import { getLicences, type Licence, api, type User } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { useToast } from '@/components/toast';
 import { LICENCES_ENDPOINT } from '@/lib/endpoints';
@@ -18,6 +17,14 @@ const baseURL =
 type ExtraFilterKey = 'validTo';
 
 export default function ReportsLicencesPage() {
+  const { data: user, isLoading: userLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => {
+      const res = await api.get<User>('/auth/me');
+      return res.data;
+    },
+  });
+
   const [status, setStatus] = useState('');
   const [companyId, setCompanyId] = useState('');
   const [expiringInDays, setExpiringInDays] = useState<number | null>(null);
@@ -44,6 +51,7 @@ export default function ReportsLicencesPage() {
       const res = await api.get<{ id: string; name: string }[]>('/companies');
       return res.data ?? [];
     },
+    enabled: user?.role === 'SUPER_ADMIN',
   });
 
   const queryParams = () => {
@@ -65,6 +73,7 @@ export default function ReportsLicencesPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['licences', 'report', status, companyId, expiringInDays, validFrom, validTo],
     queryFn: async () => getLicences(queryParams()),
+    enabled: user?.role === 'SUPER_ADMIN',
   });
 
   const licences = data ?? [];
@@ -109,6 +118,18 @@ export default function ReportsLicencesPage() {
     } catch (e) {
       showError(e instanceof Error ? e.message : 'Export nije uspeo.');
     }
+  }
+
+  if (userLoading) {
+    return <p className="text-sm text-zinc-500">Loading…</p>;
+  }
+
+  if (user?.role !== 'SUPER_ADMIN') {
+    return (
+      <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+        Nema pristupa. Licences su dostupne samo administratorima.
+      </p>
+    );
   }
 
   return (

@@ -3,7 +3,8 @@
 import { use, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type Licence, type User } from '@/lib/api';
+import { api, type Licence } from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useToast } from '@/components/toast';
 
 const STATUS_OPTIONS = ['ACTIVE', 'EXPIRED', 'SUSPENDED', 'CANCELLED'] as const;
@@ -21,13 +22,8 @@ export default function LicenceDetailPage({ params }: { params: Promise<{ id: st
   const [error, setError] = useState<string | null>(null);
   const { showSuccess } = useToast();
 
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: async () => {
-      const res = await api.get<User>('/auth/me');
-      return res.data;
-    },
-  });
+  const { canEdit } = usePermissions();
+  const canEditLicence = canEdit('licences');
 
   const { data: licence, isLoading, error: loadError } = useQuery({
     queryKey: ['licence', id],
@@ -48,7 +44,7 @@ export default function LicenceDetailPage({ params }: { params: Promise<{ id: st
       const res = await api.get<{ id: string; name: string }[]>('/companies');
       return res.data ?? [];
     },
-    enabled: me?.role === 'SUPER_ADMIN',
+    enabled: canEditLicence,
   });
 
   const { data: devices = [] } = useQuery({
@@ -57,7 +53,7 @@ export default function LicenceDetailPage({ params }: { params: Promise<{ id: st
       const res = await api.get<{ id: string; name: string | null; serialNo: string | null; model: string | null }[]>('/devices');
       return res.data ?? [];
     },
-    enabled: me?.role === 'SUPER_ADMIN',
+    enabled: canEditLicence,
   });
 
   const updateMutation = useMutation({
@@ -88,8 +84,6 @@ export default function LicenceDetailPage({ params }: { params: Promise<{ id: st
     },
   });
 
-  const isSuperAdmin = me?.role === 'SUPER_ADMIN';
-
   if (isLoading) {
     return (
       <div>
@@ -106,7 +100,7 @@ export default function LicenceDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  if (isSuperAdmin) {
+  if (canEditLicence) {
     return (
       <div className="space-y-6">
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Licence / Izmeni</h1>

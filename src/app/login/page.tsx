@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, type LoginResponse, getPublicBranding, type PublicBranding } from '@/lib/api';
 import { setToken, setRefreshToken } from '@/lib/auth';
+import { clearSessionCache } from '@/lib/session-cache';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +48,8 @@ export default function LoginPage() {
         } else {
           setRefreshToken(null);
         }
-        router.push('/dashboard');
-        router.refresh();
+        clearSessionCache();
+        window.location.href = '/dashboard';
       } else {
         setError('No token received');
       }

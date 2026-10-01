@@ -11,6 +11,7 @@ import { ImportLicencesModal } from '@/components/import-licences-modal';
 import { useToast } from '@/components/toast';
 import { LICENCES_ENDPOINT } from '@/lib/endpoints';
 import { SearchableSelect } from '@/components/searchable-select';
+import { useTexts } from '@/lib/use-texts';
 
 const baseURL =
   typeof window !== 'undefined'
@@ -20,6 +21,7 @@ const baseURL =
 const DEFAULT_EXPIRING_DAYS = [30, 14, 7, 1];
 
 function LicencesPageInner() {
+  const t = useTexts();
   const searchParams = useSearchParams();
   const expiringFromParam = searchParams.get('expiringFromDays');
   const expiringToParam = searchParams.get('expiringToDays');
@@ -137,9 +139,9 @@ function LicencesPageInner() {
     <div>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Licences</h1>
+          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{t('licences.title')}</h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Pregled licenci. Filtriraj po statusu (ACTIVE/EXPIRED…).
+            {t('licences.description')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -148,21 +150,21 @@ function LicencesPageInner() {
             onClick={exportCsv}
             className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-600 dark:text-zinc-200"
           >
-            Export CSV
+            {t('licences.btn.exportCsv')}
           </button>
           <button
             type="button"
             onClick={() => setImportModalOpen(true)}
             className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-600 dark:text-zinc-200"
           >
-            Import
+            {t('licences.btn.import')}
           </button>
           <button
             type="button"
             onClick={() => setAddModalOpen(true)}
             className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
           >
-            Add new Licence
+            {t('licences.btn.addNew')}
           </button>
         </div>
       </div>
@@ -170,7 +172,7 @@ function LicencesPageInner() {
       <ImportLicencesModal open={importModalOpen} onClose={() => setImportModalOpen(false)} />
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <label className="text-sm text-zinc-600 dark:text-zinc-400">
-          Status
+          {t('licences.filter.status')}
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -184,7 +186,7 @@ function LicencesPageInner() {
           </select>
         </label>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">Company</span>
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">{t('licences.filter.company')}</span>
           <SearchableSelect
             value={companyId}
             onChange={setCompanyId}
@@ -198,7 +200,7 @@ function LicencesPageInner() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">Expiring</span>
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">{t('licences.filter.expiring')}</span>
           {expiringDays.map((d, i, arr) => {
             const prev = i < arr.length - 1 ? arr[i + 1]! : 0;
             const from = prev + 1;
@@ -227,7 +229,7 @@ function LicencesPageInner() {
               href="/licences"
               className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
             >
-              Clear
+              {t('licences.btn.clear')}
             </Link>
           )}
         </div>
@@ -243,14 +245,14 @@ function LicencesPageInner() {
           <table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-700">
             <thead className="bg-zinc-50 dark:bg-zinc-800/50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Product</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Company</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Device</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Status</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Valid to</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Updated</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('licences.th.product')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('licences.th.company')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('licences.th.device')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('licences.th.status')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('licences.th.validTo')}</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('licences.th.updated')}</th>
                 {canEdit && (
-                  <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Actions</th>
+                  <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('licences.th.actions')}</th>
                 )}
               </tr>
             </thead>

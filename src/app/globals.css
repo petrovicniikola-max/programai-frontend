@@ -4,8 +4,13 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #18181b;
+}
+
+:root.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
 }
 
 @theme inline {
@@ -15,17 +20,37 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Light mode: ensure interactive elements stay readable (not washed out by OS theme). */
+:root:not(.dark) button,
+:root:not(.dark) select {
+  color: #18181b;
+}
+
+.leave-calendar-day {
+  border: 1px solid #a1a1aa;
+  background: #ffffff;
+  color: #18181b;
+}
+
+:root.dark .leave-calendar-day {
+  border-color: #52525b;
+  background: #18181b;
+  color: #fafafa;
+}
+
+.leave-calendar-day.is-holiday {
+  border-color: #4ade80;
+  background: #f0fdf4;
+}
+
+:root.dark .leave-calendar-day.is-holiday {
+  background: rgb(20 83 45 / 0.25);
 }
 
 /* A4 print: hide app shell, show only main content */

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -9,6 +9,7 @@ import { CreateTicketModal } from '@/components/create-ticket-modal';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AsyncSearchableSelect } from '@/components/async-searchable-select';
 import { searchCompanies, minSearchHint } from '@/lib/entity-search';
+import { useTexts } from '@/lib/use-texts';
 
 interface Ticket {
   id: string;
@@ -46,6 +47,7 @@ function userLabel(u: { displayName: string | null; email: string } | null) {
 }
 
 export default function TicketsPage() {
+  const txt = useTexts();
   const queryClient = useQueryClient();
   const { showError } = useToast();
   const [status, setStatus] = useState<string>('');
@@ -57,7 +59,13 @@ export default function TicketsPage() {
   const [createdInLastDays, setCreatedInLastDays] = useState<string>('');
   const [page, setPage] = useState(1);
   const [listSearch, setListSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(listSearch), 350);
+    return () => clearTimeout(timer);
+  }, [listSearch]);
 
   const { data: users } = useQuery({
     queryKey: ['auth', 'users'],
@@ -65,6 +73,7 @@ export default function TicketsPage() {
       const res = await api.get<TenantUser[]>('/auth/users');
       return res.data;
     },
+    staleTime: 120_000,
   });
 
   const { data: me } = useQuery({
@@ -76,7 +85,7 @@ export default function TicketsPage() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['tickets', status, type, assigneeId, createdByUserId, companyId, createdInLastDays, listSearch, page],
+    queryKey: ['tickets', status, type, assigneeId, createdByUserId, companyId, createdInLastDays, debouncedSearch, page],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status) params.set('status', status);
@@ -84,7 +93,7 @@ export default function TicketsPage() {
       if (assigneeId) params.set('assigneeId', assigneeId);
       if (createdByUserId) params.set('createdByUserId', createdByUserId);
       if (companyId) params.set('companyId', companyId);
-      if (listSearch.trim().length >= 2) params.set('search', listSearch.trim());
+      if (debouncedSearch.trim().length >= 2) params.set('search', debouncedSearch.trim());
       if (createdInLastDays) {
         const days = Number(createdInLastDays);
         if (!Number.isNaN(days) && days > 0) {
@@ -127,13 +136,13 @@ export default function TicketsPage() {
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Tickets</h1>
+        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{txt('tickets.title')}</h1>
         <button
           type="button"
           onClick={() => setCreateModalOpen(true)}
           className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
         >
-          Create Ticket
+          {txt('tickets.btn.create')}
         </button>
       </div>
       <CreateTicketModal
@@ -145,7 +154,7 @@ export default function TicketsPage() {
       <div className="mt-4 flex flex-wrap items-center gap-4">
         <input
           type="text"
-          placeholder="Pretraži tikete (key, naslov, korisnik)…"
+          placeholder={txt('tickets.input.search.placeholder')}
           value={listSearch}
           onChange={(e) => {
             setListSearch(e.target.value);
@@ -154,7 +163,7 @@ export default function TicketsPage() {
           className="w-full min-w-[14rem] max-w-md rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
         />
         <div className="flex items-center gap-2">
-          <label className="text-sm text-zinc-600 dark:text-zinc-400">Status</label>
+          <label className="text-sm text-zinc-600 dark:text-zinc-400">{txt('tickets.filter.status')}</label>
           <select
             value={status}
             onChange={(e) => {
@@ -170,7 +179,7 @@ export default function TicketsPage() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-zinc-600 dark:text-zinc-400">Type</label>
+          <label className="text-sm text-zinc-600 dark:text-zinc-400">{txt('tickets.filter.type')}</label>
           <select
             value={type}
             onChange={(e) => {
@@ -188,7 +197,7 @@ export default function TicketsPage() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-zinc-600 dark:text-zinc-400">Assignee</label>
+          <label className="text-sm text-zinc-600 dark:text-zinc-400">{txt('tickets.filter.assignee')}</label>
           <SearchableSelect
             value={assigneeId}
             onChange={(v) => {
@@ -206,7 +215,7 @@ export default function TicketsPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-zinc-600 dark:text-zinc-400">Created by</label>
+          <label className="text-sm text-zinc-600 dark:text-zinc-400">{txt('tickets.filter.createdBy')}</label>
           <SearchableSelect
             value={createdByUserId}
             onChange={(v) => {
@@ -223,7 +232,7 @@ export default function TicketsPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-zinc-600 dark:text-zinc-400">Company</label>
+          <label className="text-sm text-zinc-600 dark:text-zinc-400">{txt('tickets.filter.company')}</label>
           <AsyncSearchableSelect
             value={companyId}
             onChange={(v) => {
@@ -240,7 +249,7 @@ export default function TicketsPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-zinc-600 dark:text-zinc-400">Created</label>
+          <label className="text-sm text-zinc-600 dark:text-zinc-400">{txt('tickets.filter.created')}</label>
           <select
             value={createdInLastDays}
             onChange={(e) => {
@@ -270,18 +279,18 @@ export default function TicketsPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Key</th>
-                  <th className="px-4 py-2 font-medium">Title</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Type</th>
-                  <th className="px-4 py-2 font-medium">Company</th>
-                  <th className="px-4 py-2 font-medium">Način kontakta</th>
-                  <th className="px-4 py-2 font-medium">Broj kontakt.</th>
-                  <th className="px-4 py-2 font-medium">Assignee</th>
-                  <th className="px-4 py-2 font-medium">Created by</th>
-                  <th className="px-4 py-2 font-medium">Created</th>
-                  <th className="px-4 py-2 font-medium">Updated</th>
-                  <th className="px-4 py-2 font-medium">Akcije</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.key')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.title')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.status')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.type')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.company')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.contactMethod')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.contactsContactedCount')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.assignee')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.createdBy')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.createdAt')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.updatedAt')}</th>
+                  <th className="px-4 py-2 font-medium">{txt('tickets.table.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -328,7 +337,7 @@ export default function TicketsPage() {
                           href={`/tickets/${t.id}`}
                           className="text-emerald-600 hover:underline dark:text-emerald-400"
                         >
-                          Edit
+                          {txt('tickets.btn.edit')}
                         </Link>
                         <button
                           type="button"
@@ -336,7 +345,7 @@ export default function TicketsPage() {
                           disabled={deleteTicket.isPending}
                           className="text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
                         >
-                          Obriši
+                          {txt('tickets.btn.delete')}
                         </button>
                       </div>
                     </td>
@@ -355,7 +364,7 @@ export default function TicketsPage() {
                   onClick={() => setPage((p) => p - 1)}
                   className="rounded border px-2 py-1 text-sm disabled:opacity-50"
                 >
-                  Previous
+                  {txt('tickets.pagination.prev')}
                 </button>
                 <span className="py-1 text-sm">
                   Page {page} of {Math.ceil(data.total / data.limit)}
@@ -366,7 +375,7 @@ export default function TicketsPage() {
                   onClick={() => setPage((p) => p + 1)}
                   className="rounded border px-2 py-1 text-sm disabled:opacity-50"
                 >
-                  Next
+                  {txt('tickets.pagination.next')}
                 </button>
               </div>
             )}

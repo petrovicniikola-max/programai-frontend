@@ -39,6 +39,13 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
   const [loading, setLoading] = useState(false);
   const lookupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLookupRef = useRef<string>('');
+  // Polja koja je korisnik namerno ispraznio – autofill ih ne sme ponovo popuniti
+  const suppressedRef = useRef<Set<string>>(new Set());
+
+  const markField = useCallback((field: string, value: string) => {
+    if (value.trim() === '') suppressedRef.current.add(field);
+    else suppressedRef.current.delete(field);
+  }, []);
 
   const runLookup = useCallback(async () => {
     const q = [phone, contactName, companyName, companyId, companyPib, companyMb].filter(Boolean).join('|');
@@ -58,14 +65,17 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
         company?: { id: string; name: string; pib: string | null; mb: string | null };
       }>(`/tickets/quick-call/client-lookup?${params.toString()}`);
       const { contact, company } = res.data;
+      const suppressed = suppressedRef.current;
       if (contact) {
-        setContactName((prev) => prev || contact.name);
-        if (contact.phones?.[0]?.phoneRaw) setPhone((prev) => prev || contact.phones[0].phoneRaw);
+        if (!suppressed.has('contactName')) setContactName((prev) => prev || contact.name);
+        if (contact.phones?.[0]?.phoneRaw && !suppressed.has('phone')) {
+          setPhone((prev) => prev || contact.phones[0].phoneRaw);
+        }
       }
       if (company) {
-        setCompanyName((prev) => prev || company.name);
-        if (company.pib) setCompanyPib((prev) => prev || (company.pib ?? ''));
-        if (company.mb) setCompanyMb((prev) => prev || (company.mb ?? ''));
+        if (!suppressed.has('companyName')) setCompanyName((prev) => prev || company.name);
+        if (company.pib && !suppressed.has('companyPib')) setCompanyPib((prev) => prev || (company.pib ?? ''));
+        if (company.mb && !suppressed.has('companyMb')) setCompanyMb((prev) => prev || (company.mb ?? ''));
         if (company.id) setCompanyId((prev) => prev || company.id);
       }
     } catch {
@@ -113,6 +123,7 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
       setCompanyMb('');
       setUseCentrala(false);
       lastLookupRef.current = '';
+      suppressedRef.current.clear();
       setSummary('');
       setCallOccurredAt('');
       setCallDurationMinutes('');
@@ -159,6 +170,7 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
                 value={phone}
                 onChange={(e) => {
                   setPhone(e.target.value);
+                  markField('phone', e.target.value);
                   scheduleLookup();
                 }}
                 onBlur={runLookup}
@@ -177,6 +189,7 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
               value={contactName}
               onChange={(e) => {
                 setContactName(e.target.value);
+                markField('contactName', e.target.value);
                 scheduleLookup();
               }}
               onBlur={runLookup}
@@ -193,6 +206,7 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
               value={companyName}
               onChange={(e) => {
                 setCompanyName(e.target.value);
+                markField('companyName', e.target.value);
                 scheduleLookup();
               }}
               onBlur={runLookup}
@@ -210,6 +224,7 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
               value={companyPib}
               onChange={(e) => {
                 setCompanyPib(e.target.value);
+                markField('companyPib', e.target.value);
                 scheduleLookup();
               }}
               onBlur={runLookup}
@@ -226,6 +241,7 @@ export function QuickCallModal({ open, onClose }: QuickCallModalProps) {
               value={companyMb}
               onChange={(e) => {
                 setCompanyMb(e.target.value);
+                markField('companyMb', e.target.value);
                 scheduleLookup();
               }}
               onBlur={runLookup}

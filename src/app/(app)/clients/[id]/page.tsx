@@ -3,7 +3,8 @@
 import { use, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type User } from '@/lib/api';
+import { api } from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 import { AssignDeviceModal } from '@/components/assign-device-modal';
 import { AddCompanyUserModal } from '@/components/add-company-user-modal';
 
@@ -39,13 +40,9 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: async () => {
-      const res = await api.get<User>('/auth/me');
-      return res.data;
-    },
-  });
+  const { canEdit } = usePermissions();
+  const canEditClients = canEdit('clients');
+  const canEditAddons = canEditClients;
 
   const { data: company, isLoading, error: loadError } = useQuery({
     queryKey: ['company', id],
@@ -64,9 +61,6 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     enabled: !!company?.id,
   });
 
-  const isSuperAdmin = me?.role === 'SUPER_ADMIN';
-  const canEditAddons = me?.role !== 'USER'; // svi sem USER-a mogu da menjaju Dodatke
-
   interface CompanyUserRow {
     id: string;
     email: string;
@@ -81,7 +75,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       const res = await api.get<CompanyUserRow[]>(`/companies/${id}/users`);
       return res.data ?? [];
     },
-    enabled: !!company?.id && isSuperAdmin,
+    enabled: !!company?.id && canEditClients,
   });
 
   const updateMutation = useMutation({
@@ -150,7 +144,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       {/* Podaci korisnika */}
       <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
         <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Podaci korisnika</h2>
-        {isSuperAdmin ? (
+        {canEditClients ? (
           <form
             className="space-y-4"
             onSubmit={(e) => {
@@ -317,7 +311,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Dodeljeni uređaji {devices.length > 0 && `(poslednjih ${Math.min(devices.length, 10)})`}
         </h2>
-        {isSuperAdmin && (
+        {canEditClients && (
           <div className="mb-3 flex flex-wrap gap-2">
             <Link
               href={`/devices/add${id ? `?companyId=${id}` : ''}`}
@@ -351,7 +345,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                   <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Naziv uređaja</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Model</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Status</th>
-                  {isSuperAdmin && <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Akcije</th>}
+                  {canEditClients && <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Akcije</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -361,7 +355,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                     <td className="px-4 py-2 text-zinc-900 dark:text-zinc-50">{d.name ?? '—'}</td>
                     <td className="px-4 py-2 text-zinc-900 dark:text-zinc-50">{d.model ?? '—'}</td>
                     <td className="px-4 py-2 text-zinc-900 dark:text-zinc-50">{d.status}</td>
-                    {isSuperAdmin && (
+                    {canEditClients && (
                       <td className="px-4 py-2">
                         <Link
                           href={`/devices/${d.id}`}
@@ -380,7 +374,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       </section>
 
       {/* Korisnički nalozi */}
-      {isSuperAdmin && (
+      {canEditClients && (
         <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
           <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">Korisnički nalozi</h2>
           <div className="mb-3">

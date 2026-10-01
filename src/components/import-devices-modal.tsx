@@ -160,7 +160,7 @@ export function ImportDevicesModal({ open, onClose }: ImportDevicesModalProps) {
       {mode === 'teron' ? (
         <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
           Uvoz iz Teron izvoza: serijski broj, korisnik (kompanija), distributer, licence i meta polja.
-          Do <strong>25 000</strong> redova. Postojeći uređaji (isti serijski broj) se ažuriraju; nove
+          Do <strong>50 000</strong> redova. Postojeći uređaji (isti serijski broj) se ažuriraju; nove
           kompanije i distributeri se kreiraju automatski.
         </p>
       ) : (

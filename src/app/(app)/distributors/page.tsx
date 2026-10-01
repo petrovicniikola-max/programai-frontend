@@ -4,14 +4,16 @@ import Link from 'next/link';
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Distributor } from '@/lib/api';
+import { useTexts } from '@/lib/use-texts';
 
 export default function DistributorsPage() {
+  const t = useTexts();
   const [search, setSearch] = useState('');
 
   const { data: distributors = [], isLoading, error } = useQuery({
-    queryKey: ['distributors'],
+    queryKey: ['distributors', 'main'],
     queryFn: async () => {
-      const res = await api.get<Distributor[]>('/distributors');
+      const res = await api.get<Distributor[]>('/distributors', { params: { kind: 'main' } });
       return res.data ?? [];
     },
   });
@@ -24,26 +26,25 @@ export default function DistributorsPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Distributeri</h1>
+      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{t('distributors.title')}</h1>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Lista distributera iz Teron uvoza i ručnog dodeljivanja na uređajima. Klik na distributera filtrira
-        uređaje.
+        {t('distributors.description')}
       </p>
 
       <div className="mt-4">
         <input
           type="text"
-          placeholder="Pretraži distributere…"
+          placeholder={t('distributors.input.search.placeholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full max-w-md rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
         />
       </div>
 
-      {isLoading && <p className="mt-4 text-sm text-zinc-500">Učitavanje…</p>}
+      {isLoading && <p className="mt-4 text-sm text-zinc-500">{t('distributors.loading')}</p>}
       {error && (
         <p className="mt-4 text-sm text-red-600 dark:text-red-400" role="alert">
-          Učitavanje distributera nije uspelo.
+          {t('distributors.error')}
         </p>
       )}
 
@@ -52,24 +53,26 @@ export default function DistributorsPage() {
           <table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-700">
             <thead className="bg-zinc-50 dark:bg-zinc-800/50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Naziv</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('distributors.th.name')}</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">
-                  Broj uređaja
+                  {t('distributors.th.count')}
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">Akcije</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{t('distributors.th.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
               {filtered.map((d) => (
                 <tr key={d.id} className="bg-white dark:bg-zinc-800/40">
                   <td className="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-50">{d.name}</td>
-                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{d._count?.devices ?? 0}</td>
+                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
+                    {d.totalDevices ?? d._count?.devices ?? 0}
+                  </td>
                   <td className="px-4 py-2">
                     <Link
                       href={`/devices?distributorId=${d.id}`}
                       className="text-emerald-600 hover:underline dark:text-emerald-400"
                     >
-                      Uređaji
+                      {t('distributors.action.devices')}
                     </Link>
                   </td>
                 </tr>
@@ -78,8 +81,8 @@ export default function DistributorsPage() {
                 <tr>
                   <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
                     {distributors.length === 0
-                      ? 'Nema distributera. Uvezi Teron Excel na stranici Uređaji.'
-                      : 'Nema rezultata pretrage.'}
+                      ? t('distributors.empty.noDistributors')
+                      : t('distributors.empty.noResults')}
                   </td>
                 </tr>
               )}

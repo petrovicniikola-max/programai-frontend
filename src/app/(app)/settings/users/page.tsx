@@ -6,20 +6,36 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Modal } from '@/components/modal';
 import { useToast } from '@/components/toast';
+import { useTexts } from '@/lib/use-texts';
 
 interface SettingsUser {
   id: string;
   email: string;
   displayName: string | null;
   role: string;
+  roleId?: string | null;
   isActive: boolean;
   createdAt: string;
   receiveLicenceExpiryEmails?: boolean;
+  employmentDate?: string | null;
+  leaveApproverId?: string | null;
+  jobTitle?: string | null;
+  employmentContractType?: string;
+  contractEndDate?: string | null;
+  totalWorkExperienceYears?: number | null;
+}
+
+interface RoleOption {
+  id: string;
+  slug: string;
+  name: string;
+  isSystem: boolean;
 }
 
 export default function SettingsUsersPage() {
   const queryClient = useQueryClient();
   const { showError } = useToast();
+  const txt = useTexts();
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<SettingsUser | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<SettingsUser | null>(null);
@@ -32,8 +48,21 @@ export default function SettingsUsersPage() {
     },
   });
 
+  const { data: roles = [] } = useQuery({
+    queryKey: ['settings', 'roles'],
+    queryFn: async () => {
+      const res = await api.get<RoleOption[]>('/settings/roles');
+      return res.data ?? [];
+    },
+  });
+
   const createUser = useMutation({
-    mutationFn: async (body: { email: string; displayName?: string; password: string; role: string }) => {
+    mutationFn: async (body: {
+      email: string;
+      displayName?: string;
+      password: string;
+      roleId: string;
+    }) => {
       const res = await api.post<SettingsUser>('/settings/users', body);
       return res.data;
     },
@@ -47,7 +76,24 @@ export default function SettingsUsersPage() {
   });
 
   const updateUser = useMutation({
-    mutationFn: async ({ id, body }: { id: string; body: { displayName?: string; role?: string; isActive?: boolean } }) => {
+    mutationFn: async ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: {
+        displayName?: string;
+        roleId?: string;
+        isActive?: boolean;
+        receiveLicenceExpiryEmails?: boolean;
+        employmentDate?: string | null;
+        leaveApproverId?: string | null;
+        jobTitle?: string | null;
+        employmentContractType?: string;
+        contractEndDate?: string | null;
+        totalWorkExperienceYears?: number | null;
+      };
+    }) => {
       const res = await api.patch<SettingsUser>(`/settings/users/${id}`, body);
       return res.data;
     },
@@ -75,21 +121,21 @@ export default function SettingsUsersPage() {
   return (
     <div>
       <Link href="/settings" className="text-sm text-emerald-600 hover:underline dark:text-emerald-400">
-        ← Settings
+        {txt('settings.back')}
       </Link>
-      <h1 className="mt-4 text-xl font-semibold text-zinc-900 dark:text-zinc-50">Users & Roles</h1>
-      <p className="mt-2 text-zinc-600 dark:text-zinc-400">Create and manage users; reset password.</p>
+      <h1 className="mt-4 text-xl font-semibold text-zinc-900 dark:text-zinc-50">{txt('settings.users.title')}</h1>
+      <p className="mt-2 text-zinc-600 dark:text-zinc-400">{txt('settings.users.description')}</p>
       <div className="mt-4 flex justify-end">
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
           className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
         >
-          Create user
+          {txt('settings.users.btn.create')}
         </button>
       </div>
       {isLoading ? (
-        <p className="mt-4 text-sm text-zinc-500">Loading…</p>
+        <p className="mt-4 text-sm text-zinc-500">{txt('settings.users.loading')}</p>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
           <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -141,15 +187,18 @@ export default function SettingsUsersPage() {
 
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Create user">
         <CreateUserForm
+          roles={roles}
           onSubmit={(d) => createUser.mutate(d)}
           onCancel={() => setCreateOpen(false)}
           isLoading={createUser.isPending}
         />
       </Modal>
       {editUser && (
-        <Modal open onClose={() => setEditUser(null)} title="Edit user">
+        <Modal open onClose={() => setEditUser(null)} title="Edit user" size="lg">
           <EditUserForm
             user={editUser}
+            roles={roles}
+            allUsers={users}
             onSubmit={(body) => updateUser.mutate({ id: editUser.id, body })}
             onCancel={() => setEditUser(null)}
             isLoading={updateUser.isPending}
@@ -171,23 +220,26 @@ export default function SettingsUsersPage() {
 }
 
 function CreateUserForm({
+  roles,
   onSubmit,
   onCancel,
   isLoading,
 }: {
-  onSubmit: (d: { email: string; displayName?: string; password: string; role: string }) => void;
+  roles: RoleOption[];
+  onSubmit: (d: { email: string; displayName?: string; password: string; roleId: string }) => void;
   onCancel: () => void;
   isLoading: boolean;
 }) {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('SUPPORT');
+  const defaultRoleId = roles.find((r) => r.slug === 'SUPPORT')?.id ?? roles[0]?.id ?? '';
+  const [roleId, setRoleId] = useState(defaultRoleId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password || password.length < 8) return;
-    onSubmit({ email: email.trim(), displayName: displayName.trim() || undefined, password, role });
+    if (!email.trim() || !password || password.length < 8 || !roleId) return;
+    onSubmit({ email: email.trim(), displayName: displayName.trim() || undefined, password, roleId });
   };
 
   return (
@@ -225,14 +277,15 @@ function CreateUserForm({
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Role</label>
         <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
+          value={roleId}
+          onChange={(e) => setRoleId(e.target.value)}
           className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
         >
-          <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-          <option value="SUPPORT">SUPPORT</option>
-          <option value="SALES">SALES</option>
-          <option value="USER">USER</option>
+          {roles.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name} ({r.slug})
+            </option>
+          ))}
         </select>
       </div>
       <div className="flex justify-end gap-2 pt-2">
@@ -247,29 +300,64 @@ function CreateUserForm({
 
 function EditUserForm({
   user,
+  roles,
+  allUsers,
   onSubmit,
   onCancel,
   isLoading,
 }: {
   user: SettingsUser;
-  onSubmit: (body: { displayName?: string; role?: string; isActive?: boolean; receiveLicenceExpiryEmails?: boolean }) => void;
+  roles: RoleOption[];
+  allUsers: SettingsUser[];
+  onSubmit: (body: {
+    displayName?: string;
+    roleId?: string;
+    isActive?: boolean;
+    receiveLicenceExpiryEmails?: boolean;
+    employmentDate?: string | null;
+    leaveApproverId?: string | null;
+    jobTitle?: string | null;
+    employmentContractType?: string;
+    contractEndDate?: string | null;
+    totalWorkExperienceYears?: number | null;
+  }) => void;
   onCancel: () => void;
   isLoading: boolean;
 }) {
   const [displayName, setDisplayName] = useState(user.displayName ?? '');
-  const [role, setRole] = useState(user.role);
+  const [roleId, setRoleId] = useState(
+    user.roleId ?? roles.find((r) => r.slug === user.role)?.id ?? '',
+  );
   const [isActive, setIsActive] = useState(user.isActive);
   const [receiveLicenceExpiryEmails, setReceiveLicenceExpiryEmails] = useState(
     user.receiveLicenceExpiryEmails ?? false,
+  );
+  const [employmentDate, setEmploymentDate] = useState(user.employmentDate?.slice(0, 10) ?? '');
+  const [leaveApproverId, setLeaveApproverId] = useState(user.leaveApproverId ?? '');
+  const [jobTitle, setJobTitle] = useState(user.jobTitle ?? '');
+  const [employmentContractType, setEmploymentContractType] = useState(
+    user.employmentContractType ?? 'INDEFINITE',
+  );
+  const [contractEndDate, setContractEndDate] = useState(user.contractEndDate?.slice(0, 10) ?? '');
+  const [totalWorkExperienceYears, setTotalWorkExperienceYears] = useState(
+    user.totalWorkExperienceYears != null ? String(user.totalWorkExperienceYears) : '',
   );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       displayName: displayName.trim() || undefined,
-      role,
+      roleId: roleId || undefined,
       isActive,
       receiveLicenceExpiryEmails,
+      employmentDate: employmentDate || null,
+      leaveApproverId: leaveApproverId || null,
+      jobTitle: jobTitle.trim() || null,
+      employmentContractType,
+      contractEndDate: contractEndDate || null,
+      totalWorkExperienceYears: totalWorkExperienceYears
+        ? Number(totalWorkExperienceYears)
+        : null,
     });
   };
 
@@ -288,14 +376,15 @@ function EditUserForm({
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Role</label>
         <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
+          value={roleId}
+          onChange={(e) => setRoleId(e.target.value)}
           className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
         >
-          <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-          <option value="SUPPORT">SUPPORT</option>
-          <option value="SALES">SALES</option>
-          <option value="USER">USER</option>
+          {roles.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name} ({r.slug})
+            </option>
+          ))}
         </select>
       </div>
       <div className="flex items-center gap-2">
@@ -319,6 +408,75 @@ function EditUserForm({
         <label htmlFor="licenceAlerts" className="text-sm text-zinc-700 dark:text-zinc-300">
           Receive licence expiry alerts
         </label>
+      </div>
+      <hr className="border-zinc-200 dark:border-zinc-700" />
+      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Odsustva / HR</p>
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Datum zaposlenja <span className="font-normal text-zinc-500">(potreban za godišnji odmor)</span>
+        </label>
+        <input
+          type="date"
+          value={employmentDate}
+          onChange={(e) => setEmploymentDate(e.target.value)}
+          className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Odobrava odsustva</label>
+        <select
+          value={leaveApproverId}
+          onChange={(e) => setLeaveApproverId(e.target.value)}
+          className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+        >
+          <option value="">—</option>
+          {allUsers.filter((u) => u.id !== user.id).map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.displayName ?? u.email}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Radno mesto</label>
+        <input
+          type="text"
+          value={jobTitle}
+          onChange={(e) => setJobTitle(e.target.value)}
+          className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Tip ugovora</label>
+          <select
+            value={employmentContractType}
+            onChange={(e) => setEmploymentContractType(e.target.value)}
+            className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+          >
+            <option value="INDEFINITE">Na neodređeno</option>
+            <option value="FIXED_TERM">Na određeno</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Istek ugovora</label>
+          <input
+            type="date"
+            value={contractEndDate}
+            onChange={(e) => setContractEndDate(e.target.value)}
+            className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Ukupan staž (godine, opciono)</label>
+        <input
+          type="number"
+          min={0}
+          value={totalWorkExperienceYears}
+          onChange={(e) => setTotalWorkExperienceYears(e.target.value)}
+          className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+        />
       </div>
       <div className="flex justify-end gap-2 pt-2">
         <button type="button" onClick={onCancel} className="rounded px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400">Cancel</button>

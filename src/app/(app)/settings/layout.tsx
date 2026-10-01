@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api, type User } from '@/lib/api';
 import Link from 'next/link';
+import { canViewResource, isSuperAdmin } from '@/lib/permissions';
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useQuery({
@@ -21,7 +22,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     );
   }
 
-  if (user?.role !== 'SUPER_ADMIN') {
+  if (!isSuperAdmin(user?.role) && !canViewResource(user?.permissions, 'settings', user?.role)) {
     return (
       <div>
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Settings</h1>

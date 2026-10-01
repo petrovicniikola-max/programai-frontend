@@ -79,6 +79,7 @@ function AddDevicePageInner() {
     setError(null);
     createMutation.mutate({
       companyId: companyId.trim() || undefined,
+      subDistributorName: podDistributer.trim() || undefined,
       name: name.trim() || undefined,
       model: model.trim() || undefined,
       serialNo: serialNo.trim() || undefined,

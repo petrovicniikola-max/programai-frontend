@@ -4,7 +4,8 @@ import { use, useState, useEffect } from 'react';
 import type { Distributor } from '@/lib/api';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type Device, type User } from '@/lib/api';
+import { api, type Device } from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 import { DEVICE_MODELS, getMdmProfilesForModel, getDefaultMdmProfileForModel } from '@/lib/mdm-profiles';
 import { useToast } from '@/components/toast';
 
@@ -16,13 +17,8 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
   const [error, setError] = useState<string | null>(null);
   const { showSuccess } = useToast();
 
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: async () => {
-      const res = await api.get<User>('/auth/me');
-      return res.data;
-    },
-  });
+  const { canEdit, user: me } = usePermissions();
+  const canEditDevice = canEdit('devices');
 
   const { data: device, isLoading, error: loadError } = useQuery({
     queryKey: ['device', id],
@@ -43,7 +39,7 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
       const res = await api.get<{ id: string; name: string }[]>('/companies');
       return res.data ?? [];
     },
-    enabled: me?.role === 'SUPER_ADMIN',
+    enabled: canEditDevice,
   });
 
   const { data: distributors = [] } = useQuery({
@@ -52,13 +48,14 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
       const res = await api.get<Distributor[]>('/distributors');
       return res.data ?? [];
     },
-    enabled: me?.role === 'SUPER_ADMIN',
+    enabled: canEditDevice,
   });
 
   const updateMutation = useMutation({
     mutationFn: async (body: {
       companyId?: string;
       distributorId?: string;
+      subDistributorName?: string;
       name?: string;
       model?: string;
       serialNo?: string;
@@ -83,8 +80,7 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
     },
   });
 
-  const isSuperAdmin = me?.role === 'SUPER_ADMIN';
-  const isEditing = isSuperAdmin;
+  const isEditing = canEditDevice;
 
   const [editModel, setEditModel] = useState('');
   const [editMdmProfile, setEditMdmProfile] = useState('');
@@ -146,6 +142,7 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
             updateMutation.mutate({
               companyId: (formData.get('companyId') as string) || undefined,
               distributorId: (formData.get('distributorId') as string) || undefined,
+              subDistributorName: (formData.get('subDistributorName') as string) || undefined,
               name: (formData.get('name') as string) || undefined,
               model: editModel || undefined,
               serialNo: (formData.get('serialNo') as string) || undefined,
@@ -194,6 +191,18 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Pod-distributer
+              </label>
+              <input
+                type="text"
+                name="subDistributorName"
+                defaultValue={(device as any).subDistributorName ?? ''}
+                placeholder="—"
+                className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+              />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -349,6 +358,12 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
           <span className="w-32 text-zinc-500 dark:text-zinc-400">Distributer</span>
           <span className="text-zinc-900 dark:text-zinc-50">
             {device.distributor?.name ?? '—'}
+          </span>
+        </div>
+        <div className="flex gap-3 py-1">
+          <span className="w-32 text-zinc-500 dark:text-zinc-400">Pod-distributer</span>
+          <span className="text-zinc-900 dark:text-zinc-50">
+            {(device as any).subDistributorName ?? '—'}
           </span>
         </div>
         {device.notes && (

@@ -49,6 +49,35 @@ interface SalesDirectoryRow {
   updatedAt: string;
 }
 
+interface DistributorEmailRow {
+  id: string;
+  mb?: string | null;
+  pib?: string | null;
+  establishedAt?: string | null;
+  companyName?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  legalForm?: string | null;
+  activityCode?: string | null;
+  activityName?: string | null;
+  aprStatus?: string | null;
+  nbsStatus?: string | null;
+  creditRating?: string | null;
+  size?: string | null;
+  revenueEur?: string | null;
+  netProfitEur?: string | null;
+  employeesCount?: string | null;
+  ebitEur?: string | null;
+  ebitdaEur?: string | null;
+  email?: string | null;
+  representative?: string | null;
+  vatRegistered?: string | null;
+  fieldColors?: Record<string, string> | null;
+  updatedAt: string;
+}
+
 type EditableDirectoryField =
   | 'mb'
   | 'pib'
@@ -70,6 +99,38 @@ type EditableDirectoryField =
 
 interface SalesDirectoryResponse {
   items: SalesDirectoryRow[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+type EditableDistributorEmailField =
+  | 'mb'
+  | 'pib'
+  | 'establishedAt'
+  | 'companyName'
+  | 'city'
+  | 'postalCode'
+  | 'address'
+  | 'phone'
+  | 'legalForm'
+  | 'activityCode'
+  | 'activityName'
+  | 'aprStatus'
+  | 'nbsStatus'
+  | 'creditRating'
+  | 'size'
+  | 'revenueEur'
+  | 'netProfitEur'
+  | 'employeesCount'
+  | 'ebitEur'
+  | 'ebitdaEur'
+  | 'email'
+  | 'representative'
+  | 'vatRegistered';
+
+interface DistributorEmailResponse {
+  items: DistributorEmailRow[];
   total: number;
   page: number;
   limit: number;
@@ -123,6 +184,35 @@ const DIRECTORY_COLUMNS: { key: EditableDirectoryField; label: string }[] = [
   { key: 'contactDate', label: 'Datum' },
 ];
 
+const DISTRIBUTOR_EMAIL_COLUMNS: {
+  key: EditableDistributorEmailField;
+  label: string;
+}[] = [
+  { key: 'mb', label: 'MB' },
+  { key: 'pib', label: 'PIB' },
+  { key: 'establishedAt', label: 'Datum osnivanja' },
+  { key: 'companyName', label: 'Naziv preduzeća' },
+  { key: 'city', label: 'Mesto' },
+  { key: 'postalCode', label: 'Poštanski broj' },
+  { key: 'address', label: 'Adresa' },
+  { key: 'phone', label: 'Telefon' },
+  { key: 'legalForm', label: 'Pravni oblik' },
+  { key: 'activityCode', label: 'Šifra delatnosti' },
+  { key: 'activityName', label: 'Naziv delatnosti' },
+  { key: 'aprStatus', label: 'APR Status' },
+  { key: 'nbsStatus', label: 'NBS Status' },
+  { key: 'creditRating', label: 'Bonitetna ocena' },
+  { key: 'size', label: 'Veličina' },
+  { key: 'revenueEur', label: 'Promet (EUR)' },
+  { key: 'netProfitEur', label: 'Neto dobit (EUR)' },
+  { key: 'employeesCount', label: 'Broj zaposlenih' },
+  { key: 'ebitEur', label: 'Ebit (EUR)' },
+  { key: 'ebitdaEur', label: 'Ebitda (EUR)' },
+  { key: 'email', label: 'Email' },
+  { key: 'representative', label: 'Zastupnik' },
+  { key: 'vatRegistered', label: 'PDV Obveznik' },
+];
+
 export default function SalesPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -137,7 +227,7 @@ export default function SalesPage() {
   );
   const defaultTo = useMemo(() => now.toISOString().slice(0, 10), [now]);
 
-  const [activeTab, setActiveTab] = useState<'calls' | 'directory'>('calls');
+  const [activeTab, setActiveTab] = useState<'calls' | 'directory' | 'distributorEmails'>('calls');
   const [dateFrom, setDateFrom] = useState(defaultFrom);
   const [dateTo, setDateTo] = useState(defaultTo);
   const [createdByUserId, setCreatedByUserId] = useState<string>('');
@@ -155,6 +245,14 @@ export default function SalesPage() {
   const [exportFormat, setExportFormat] = useState<'csv' | 'xlsx'>('csv');
   const [exportDateFrom, setExportDateFrom] = useState('');
   const [exportDateTo, setExportDateTo] = useState('');
+
+  const [distPage, setDistPage] = useState(1);
+  const [distFilterField, setDistFilterField] = useState('all');
+  const [distFilterValue, setDistFilterValue] = useState('');
+  const [distSortBy, setDistSortBy] = useState<'createdAt' | 'establishedAt'>('createdAt');
+  const [distSortOrder, setDistSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [distImportMessage, setDistImportMessage] = useState<string | null>(null);
+  const [distImportError, setDistImportError] = useState<string | null>(null);
 
   const { data: users } = useQuery({
     queryKey: ['auth', 'users'],
@@ -210,6 +308,38 @@ export default function SalesPage() {
     enabled: activeTab === 'directory',
   });
 
+  const {
+    data: distributorEmails,
+    isLoading: distLoading,
+    error: distError,
+  } = useQuery({
+    queryKey: [
+      'sales',
+      'distributor-emails',
+      distPage,
+      distFilterField,
+      distFilterValue,
+      distSortBy,
+      distSortOrder,
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set('page', String(distPage));
+      params.set('limit', '50');
+      params.set('sortBy', distSortBy);
+      params.set('sortOrder', distSortOrder);
+      if (distFilterValue.trim()) {
+        params.set('filterValue', distFilterValue.trim());
+        if (distFilterField !== 'all') params.set('filterField', distFilterField);
+      }
+      const res = await api.get<DistributorEmailResponse>(
+        `/sales/distributor-emails?${params.toString()}`,
+      );
+      return res.data;
+    },
+    enabled: activeTab === 'distributorEmails',
+  });
+
   const importMutation = useMutation({
     mutationFn: async (file: File) => {
       const fd = new FormData();
@@ -251,6 +381,47 @@ export default function SalesPage() {
     },
   });
 
+  const distImportMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post<{
+        imported: number;
+        skipped: number;
+        totalRows: number;
+        errors?: { row: number; message: string }[];
+      }>('/sales/distributor-emails/import', fd);
+      return res.data;
+    },
+    onSuccess: (result) => {
+      setDistImportError(null);
+      const errHint =
+        result.errors && result.errors.length > 0
+          ? ` (${result.errors.length} grešaka u fajlu)`
+          : '';
+      setDistImportMessage(
+        `Import završen: ubačeno/ažurirano ${result.imported}, preskočeno ${result.skipped} od ${result.totalRows}.${errHint}`,
+      );
+      queryClient.invalidateQueries({ queryKey: ['sales', 'distributor-emails'] });
+    },
+    onError: (err: unknown) => {
+      setDistImportMessage(null);
+      const msg =
+        err &&
+        typeof err === 'object' &&
+        'response' in err &&
+        err.response &&
+        typeof err.response === 'object' &&
+        'data' in err.response &&
+        err.response.data &&
+        typeof err.response.data === 'object' &&
+        'message' in err.response.data
+          ? String((err.response.data as { message: unknown }).message)
+          : 'Import nije uspeo. Proveri format fajla (.csv, .xlsx) i da prvi red sadrži zaglavlja.';
+      setDistImportError(msg);
+    },
+  });
+
   const items =
     contactMethodFilter === ''
       ? data?.items ?? []
@@ -277,6 +448,30 @@ export default function SalesPage() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `prodaja_mailovi_pozivi_${new Date().toISOString().slice(0, 10)}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportDistributorEmails(format: 'csv' | 'xlsx') {
+    const params = new URLSearchParams();
+    params.set('format', format);
+    params.set('sortBy', distSortBy);
+    params.set('sortOrder', distSortOrder);
+    const res = await api.get(`/sales/distributor-emails/export?${params.toString()}`, {
+      responseType: 'blob',
+    });
+    const blob = new Blob([res.data], {
+      type:
+        format === 'xlsx'
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'text/csv;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prodaja_mailovi_distributeri_${new Date().toISOString().slice(0, 10)}.${format}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -313,7 +508,7 @@ export default function SalesPage() {
     <div>
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Prodaja</h1>
-        {activeTab === 'directory' && (
+        {(activeTab === 'directory' || activeTab === 'distributorEmails') && (
           <div className="flex items-center gap-2">
             <input
               ref={fileInputRef}
@@ -322,26 +517,40 @@ export default function SalesPage() {
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) importMutation.mutate(f);
+                if (f) {
+                  if (activeTab === 'directory') importMutation.mutate(f);
+                  else distImportMutation.mutate(f);
+                }
                 e.currentTarget.value = '';
               }}
             />
             <button
               type="button"
               onClick={() => {
-                setImportMessage(null);
-                setImportError(null);
+                if (activeTab === 'directory') {
+                  setImportMessage(null);
+                  setImportError(null);
+                } else {
+                  setDistImportMessage(null);
+                  setDistImportError(null);
+                }
                 fileInputRef.current?.click();
               }}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
             >
-              {importMutation.isPending ? 'Importujem…' : 'Import'}
+              {(activeTab === 'directory' ? importMutation.isPending : distImportMutation.isPending)
+                ? 'Importujem…'
+                : 'Import'}
             </button>
             <button
               type="button"
               onClick={() => {
-                setExportFormat('csv');
-                setShowExportModal(true);
+                if (activeTab === 'directory') {
+                  setExportFormat('csv');
+                  setShowExportModal(true);
+                } else {
+                  exportDistributorEmails('csv');
+                }
               }}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
             >
@@ -350,8 +559,12 @@ export default function SalesPage() {
             <button
               type="button"
               onClick={() => {
-                setExportFormat('xlsx');
-                setShowExportModal(true);
+                if (activeTab === 'directory') {
+                  setExportFormat('xlsx');
+                  setShowExportModal(true);
+                } else {
+                  exportDistributorEmails('xlsx');
+                }
               }}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
             >
@@ -379,6 +592,17 @@ export default function SalesPage() {
           }`}
         >
           Mailovi i pozivi
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('distributorEmails')}
+          className={`rounded px-3 py-1.5 text-sm ${
+            activeTab === 'distributorEmails'
+              ? 'bg-emerald-600 text-white'
+              : 'text-zinc-600 dark:text-zinc-300'
+          }`}
+        >
+          Mailovi distributerima
         </button>
       </div>
 
@@ -712,6 +936,155 @@ export default function SalesPage() {
             </div>
           )}
 
+        </>
+      )}
+
+      {activeTab === 'distributorEmails' && (
+        <>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            Mailovi poslati distributerima. Podržan je import u formatima CSV i XLSX (sa bojama polja iz XLSX fajla).
+          </p>
+          {(distImportMessage || distImportError) && (
+            <p
+              className={`mt-2 text-sm ${distImportError ? 'text-red-600 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}
+            >
+              {distImportError ?? distImportMessage}
+            </p>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label className="text-sm text-zinc-600 dark:text-zinc-400">Sortiraj po</label>
+            <select
+              value={distSortBy}
+              onChange={(e) => {
+                setDistSortBy(e.target.value as 'createdAt' | 'establishedAt');
+                setDistPage(1);
+              }}
+              className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+            >
+              <option value="createdAt">Datum ubacivanja</option>
+              <option value="establishedAt">Datum osnivanja</option>
+            </select>
+            <select
+              value={distSortOrder}
+              onChange={(e) => {
+                setDistSortOrder(e.target.value as 'asc' | 'desc');
+                setDistPage(1);
+              }}
+              className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+            >
+              <option value="desc">Najnoviji prvo</option>
+              <option value="asc">Najstariji prvo</option>
+            </select>
+
+            <label className="text-sm text-zinc-600 dark:text-zinc-400">Filter</label>
+            <select
+              value={distFilterField}
+              onChange={(e) => {
+                setDistFilterField(e.target.value);
+                setDistPage(1);
+              }}
+              className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+            >
+              <option value="all">Sva polja</option>
+              {DISTRIBUTOR_EMAIL_COLUMNS.map((c) => (
+                <option key={String(c.key)} value={String(c.key)}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <input
+              value={distFilterValue}
+              onChange={(e) => {
+                setDistFilterValue(e.target.value);
+                setDistPage(1);
+              }}
+              placeholder="unesi vrednost za pretragu..."
+              className="min-w-[260px] rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setDistFilterField('all');
+                setDistFilterValue('');
+                setDistPage(1);
+              }}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+            >
+              Očisti filter
+            </button>
+          </div>
+
+          <div className="mt-4 overflow-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+            {distError && (
+              <p className="p-4 text-red-600 dark:text-red-400">Greška pri učitavanju tabele.</p>
+            )}
+            {distLoading && <p className="p-4 text-zinc-500 dark:text-zinc-400">Učitavanje…</p>}
+            {distributorEmails && !distError && (
+              <>
+                <table className="min-w-[1400px] w-full text-left text-sm">
+                  <thead className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
+                    <tr>
+                      {DISTRIBUTOR_EMAIL_COLUMNS.map((c) => (
+                        <th key={String(c.key)} className="px-3 py-2 font-medium">
+                          {c.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {distributorEmails.items.map((row) => (
+                      <tr key={row.id} className="border-b border-zinc-100 dark:border-zinc-800">
+                        {DISTRIBUTOR_EMAIL_COLUMNS.map((c) => {
+                          const raw = row[c.key];
+                          const text =
+                            c.key === 'establishedAt' && raw
+                              ? formatDateDdMmYyyy(String(raw))
+                              : String(raw ?? '');
+                          const bg = row.fieldColors?.[String(c.key)];
+                          return (
+                            <td
+                              key={`${row.id}-${String(c.key)}`}
+                              className="px-3 py-2 text-zinc-700 dark:text-zinc-200"
+                              style={bg ? { backgroundColor: bg } : undefined}
+                            >
+                              {text || '—'}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {distributorEmails.items.length === 0 && (
+                  <p className="p-4 text-zinc-500 dark:text-zinc-400">Nema importovanih redova.</p>
+                )}
+                {distributorEmails.total > distributorEmails.limit && (
+                  <div className="flex justify-end gap-2 border-t border-zinc-200 p-2 dark:border-zinc-700">
+                    <button
+                      type="button"
+                      disabled={distPage <= 1}
+                      onClick={() => setDistPage((p) => p - 1)}
+                      className="rounded border px-2 py-1 text-sm disabled:opacity-50"
+                    >
+                      Prethodna
+                    </button>
+                    <span className="py-1 text-sm">
+                      Strana {distPage} od {Math.ceil(distributorEmails.total / distributorEmails.limit)}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={distPage >= Math.ceil(distributorEmails.total / distributorEmails.limit)}
+                      onClick={() => setDistPage((p) => p + 1)}
+                      className="rounded border px-2 py-1 text-sm disabled:opacity-50"
+                    >
+                      Sledeća
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </>
       )}
     </div>

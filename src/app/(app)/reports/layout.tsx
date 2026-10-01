@@ -8,9 +8,10 @@ import { api, type User } from '@/lib/api';
 const reportTabs: { href: string; label: string; superAdminOnly?: boolean }[] = [
   { href: '/reports/overview', label: 'Overview' },
   { href: '/reports/tickets', label: 'Tickets' },
-  { href: '/reports/licences', label: 'Licences' },
+  { href: '/reports/licences', label: 'Licences', superAdminOnly: true },
   { href: '/reports/devices', label: 'Devices' },
   { href: '/reports/tables', label: 'Tables' },
+  { href: '/reports/generator', label: 'Generator izveštaja', superAdminOnly: true },
   { href: '/reports/alerts', label: 'Alerts & Reports', superAdminOnly: true },
 ];
 
