@@ -43,6 +43,16 @@ function monthKey(iso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function upcomingMonthKeys(count = 12): string[] {
+  const now = new Date();
+  const keys: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return keys;
+}
+
 function monthLabel(key: string): string {
   const [year, month] = key.split('-').map(Number);
   if (!year || !month) return key;
@@ -89,20 +99,9 @@ export default function SoldDevicesPage() {
     return [...DEFAULT_LICENCES, ...Array.from(new Set(extras)).sort((a, b) => a.localeCompare(b, 'sr'))];
   }, [rows]);
 
-  const monthGroups = useMemo(() => {
-    const groups = new Map<string, SoldDeviceRow[]>();
-    for (const row of rows) {
-      const key = monthKey(row.createdAt);
-      if (!key) continue;
-      const bucket = groups.get(key) ?? [];
-      bucket.push(row);
-      groups.set(key, bucket);
-    }
-    return Array.from(groups.entries()).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [rows]);
-
-  const [monthFilter, setMonthFilter] = useState<string | null>(null);
-  const visibleRows = monthFilter ? rows.filter((row) => monthKey(row.createdAt) === monthFilter) : rows;
+  const monthTabs = useMemo(() => upcomingMonthKeys(12), []);
+  const [monthFilter, setMonthFilter] = useState(() => monthTabs[0] ?? monthKey(new Date().toISOString()));
+  const visibleRows = rows.filter((row) => monthKey(row.createdAt) === monthFilter);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [serialNo, setSerialNo] = useState('');
@@ -176,7 +175,6 @@ export default function SoldDevicesPage() {
   });
 
   const bonusSum = sumBonus(visibleRows);
-  const bonusShare = bonusSum / 3;
 
   function exportCsv() {
     const header = ['SN', 'Naziv', 'Licenca', 'Meseci', 'Bonus', 'Opis', 'Uneo', 'Datum'];
@@ -195,7 +193,6 @@ export default function SoldDevicesPage() {
         .join(';'),
     );
     lines.push(['', '', '', 'Suma', String(bonusSum), '', '', ''].map(csvCell).join(';'));
-    lines.push(['', '', '', 'Deo (/3)', String(bonusShare), '', '', ''].map(csvCell).join(';'));
     const blob = new Blob([`\uFEFF${header.join(';')}\n${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -225,41 +222,18 @@ export default function SoldDevicesPage() {
       <section className="mt-6">
         <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{txt('soldDevices.summary.title')}</h2>
         <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setMonthFilter(null)}
-            className={`rounded-lg border px-3 py-2 text-left text-sm ${
-              monthFilter === null
-                ? 'border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'
-                : 'border-zinc-200 dark:border-zinc-700'
-            }`}
-          >
-            {txt('soldDevices.summary.all')}
-            <span className="mt-1 block text-lg font-semibold">{fmtMoney(sumBonus(rows))}</span>
-            <span className="block text-xs text-zinc-500 dark:text-zinc-400">{rows.length} unosa</span>
-          </button>
-          {monthGroups.map(([key, group]) => (
+          {monthTabs.map((key) => (
             <button
               key={key}
               type="button"
-              onClick={() => setMonthFilter((current) => (current === key ? null : key))}
-              className={`rounded-lg border px-3 py-2 text-left text-sm ${
+              onClick={() => setMonthFilter(key)}
+              className={`rounded-lg border px-3 py-2 text-sm ${
                 monthFilter === key
-                  ? 'border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'
+                  ? 'border-emerald-600 bg-emerald-50 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'
                   : 'border-zinc-200 dark:border-zinc-700'
               }`}
             >
-              <span className="font-medium">{monthLabel(key)}</span>
-              <span className="mt-1 block text-lg font-semibold">{fmtMoney(sumBonus(group))}</span>
-              <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-                {group.length} unosa · {txt('soldDevices.summary.share')} {fmtMoney(sumBonus(group) / 3)}
-              </span>
-              <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
-                {MONTH_OPTIONS.map((monthsOption) => {
-                  const count = group.filter((row) => row.months === monthsOption).length;
-                  return `${monthsOption}: ${count}`;
-                }).join(' · ')}
-              </span>
+              {monthLabel(key)}
             </button>
           ))}
         </div>
@@ -425,9 +399,7 @@ export default function SoldDevicesPage() {
                   {txt('soldDevices.summary.total')}
                 </td>
                 <td className="px-3 py-2">{fmtMoney(bonusSum)}</td>
-                <td className="px-3 py-2" colSpan={canChange ? 4 : 3}>
-                  {txt('soldDevices.summary.share')}: {fmtMoney(bonusShare)}
-                </td>
+                <td className="px-3 py-2" colSpan={canChange ? 4 : 3} />
               </tr>
             </tfoot>
           )}
