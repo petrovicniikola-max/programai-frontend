@@ -592,6 +592,7 @@ export const DEFAULT_TEXTS: Record<string, string> = {
   'soldDevices.form.licence': 'Licenca',
   'soldDevices.form.licence.new': 'Nova licenca…',
   'soldDevices.form.licence.custom': 'Naziv nove licence',
+  'soldDevices.form.price': 'Cena',
   'soldDevices.form.months': 'Trajanje (meseci)',
   'soldDevices.form.description': 'Opis (opciono)',
   'soldDevices.btn.submit': 'Sačuvaj',

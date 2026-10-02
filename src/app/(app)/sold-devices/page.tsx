@@ -6,7 +6,15 @@ import { api } from '@/lib/api';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useTexts } from '@/lib/use-texts';
 
-const DEFAULT_LICENCES = ['PC', 'Cloud Middleware', 'Android Phone/Tablet', 'Fiscal Box'] as const;
+const DEFAULT_LICENCES = ['PC', 'Cloud Middleware', 'Android Phone/Tablet', 'Fiscal Box', 'TPS900'] as const;
+const KNOWN_LICENCE_KEYS = new Set([
+  'pc',
+  'cloud middleware',
+  'android phone/tablet',
+  'android',
+  'fiscal box',
+  'tps900',
+]);
 const MONTH_OPTIONS = [3, 6, 12, 24] as const;
 const NEW_LICENCE = '__new__';
 
@@ -71,6 +79,15 @@ function sumBonus(items: SoldDeviceRow[]): number {
   return items.reduce((sum, row) => sum + (row.bonusAmount || 0), 0);
 }
 
+function isKnownLicence(name: string): boolean {
+  return KNOWN_LICENCE_KEYS.has(name.trim().toLowerCase());
+}
+
+function canonicalLicence(name: string): string | null {
+  const key = name.trim().toLowerCase();
+  return DEFAULT_LICENCES.find((item) => item.toLowerCase() === key) ?? null;
+}
+
 function csvCell(value: string): string {
   if (/[;"\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;
@@ -95,7 +112,7 @@ export default function SoldDevicesPage() {
   const licenceOptions = useMemo(() => {
     const extras = rows
       .map((row) => row.licenceName.trim())
-      .filter((name) => name && !DEFAULT_LICENCES.includes(name as (typeof DEFAULT_LICENCES)[number]));
+      .filter((name) => name && !canonicalLicence(name));
     return [...DEFAULT_LICENCES, ...Array.from(new Set(extras)).sort((a, b) => a.localeCompare(b, 'sr'))];
   }, [rows]);
 
@@ -104,10 +121,12 @@ export default function SoldDevicesPage() {
   const visibleRows = rows.filter((row) => monthKey(row.createdAt) === monthFilter);
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingLicence, setEditingLicence] = useState('');
   const [serialNo, setSerialNo] = useState('');
   const [name, setName] = useState('');
   const [licenceChoice, setLicenceChoice] = useState('');
   const [customLicence, setCustomLicence] = useState('');
+  const [price, setPrice] = useState('');
   const [months, setMonths] = useState('12');
   const [description, setDescription] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -123,24 +142,57 @@ export default function SoldDevicesPage() {
 
   function resetForm() {
     setEditingId(null);
+    setEditingLicence('');
     setSerialNo('');
     setName('');
     setLicenceChoice('');
     setCustomLicence('');
+    setPrice('');
     setMonths('12');
     setDescription('');
   }
 
   function startEdit(row: SoldDeviceRow) {
+    const canonical = canonicalLicence(row.licenceName);
     setEditingId(row.id);
+    setEditingLicence(row.licenceName);
     setSerialNo(row.serialNo);
     setName(row.name ?? '');
-    setLicenceChoice(row.licenceName);
-    setCustomLicence('');
     setMonths(String(row.months));
     setDescription(row.description ?? '');
     setFormError(null);
     setNotice(null);
+    if (canonical || isKnownLicence(row.licenceName)) {
+      setLicenceChoice(canonical ?? row.licenceName);
+      setCustomLicence('');
+      setPrice('');
+      return;
+    }
+    setLicenceChoice(NEW_LICENCE);
+    setCustomLicence(row.licenceName);
+    setPrice(row.bonusAmount > 0 ? String(row.bonusAmount) : '');
+  }
+
+  function asksForPrice(): boolean {
+    if (licenceChoice !== NEW_LICENCE) return false;
+    const typed = customLicence.trim();
+    if (isKnownLicence(typed)) return false;
+    if (!typed) return true;
+    const typedKey = typed.toLowerCase();
+    const sameCustom =
+      editingId != null && typedKey === editingLicence.trim().toLowerCase() && !isKnownLicence(editingLicence);
+    const usedElsewhere = rows.some(
+      (row) => row.id !== editingId && row.licenceName.trim().toLowerCase() === typedKey,
+    );
+    return sameCustom || !usedElsewhere;
+  }
+
+  function parsedPrice(): number | null {
+    const raw = price.trim();
+    if (!/^[1-9]\d*$/.test(raw)) return null;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > 100_000_000) return null;
+    return n;
   }
 
   function resolvedLicence(): string {
@@ -150,13 +202,24 @@ export default function SoldDevicesPage() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const body = {
+      const body: {
+        serialNo: string;
+        name?: string;
+        licenceName: string;
+        months: number;
+        description?: string;
+        bonusAmount?: number;
+      } = {
         serialNo: serialNo.trim(),
         name: name.trim() || undefined,
         licenceName: resolvedLicence(),
         months: Number(months),
         description: description.trim() || undefined,
       };
+      if (asksForPrice()) {
+        const amount = parsedPrice();
+        if (amount != null) body.bonusAmount = amount;
+      }
       const res = editingId
         ? await api.patch<SoldDeviceRow>(`/sold-devices/${editingId}`, body)
         : await api.post<SoldDeviceRow>('/sold-devices', body);
@@ -256,6 +319,10 @@ export default function SoldDevicesPage() {
               setFormError(licenceChoice === NEW_LICENCE ? 'Unesite naziv nove licence.' : 'Izaberite licencu.');
               return;
             }
+            if (asksForPrice() && parsedPrice() == null) {
+              setFormError('Unesite cenu (pozitivan ceo broj, dinari).');
+              return;
+            }
             if (!MONTH_OPTIONS.includes(monthsNum as (typeof MONTH_OPTIONS)[number])) {
               setFormError('Trajanje izaberite iz liste: 3, 6, 12 ili 24 meseca.');
               return;
@@ -276,7 +343,7 @@ export default function SoldDevicesPage() {
               </span>
               <input value={name} onChange={(e) => setName(e.target.value)} className={fieldClass} />
             </label>
-            <label className="block">
+            <div className="block">
               <span className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 {txt('soldDevices.form.licence')}
               </span>
@@ -295,15 +362,33 @@ export default function SoldDevicesPage() {
                 ))}
               </select>
               {licenceChoice === NEW_LICENCE && (
-                <input
-                  required
-                  value={customLicence}
-                  onChange={(e) => setCustomLicence(e.target.value)}
-                  placeholder={txt('soldDevices.form.licence.custom')}
-                  className={`${fieldClass} mt-2`}
-                />
+                <div className="mt-2 flex items-end gap-2">
+                  <input
+                    required
+                    value={customLicence}
+                    onChange={(e) => setCustomLicence(e.target.value)}
+                    placeholder={txt('soldDevices.form.licence.custom')}
+                    className={`${fieldClass} min-w-0 flex-1`}
+                  />
+                  {asksForPrice() && (
+                    <span className="w-28 shrink-0">
+                      <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                        {txt('soldDevices.form.price')}
+                      </span>
+                      <input
+                        required
+                        type="text"
+                        inputMode="numeric"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        aria-label={txt('soldDevices.form.price')}
+                        className={fieldClass}
+                      />
+                    </span>
+                  )}
+                </div>
               )}
-            </label>
+            </div>
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 {txt('soldDevices.form.months')}
