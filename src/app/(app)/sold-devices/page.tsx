@@ -88,12 +88,6 @@ function canonicalLicence(name: string): string | null {
   return DEFAULT_LICENCES.find((item) => item.toLowerCase() === key) ?? null;
 }
 
-function csvCell(value: string): string {
-  const singleLine = value.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
-  if (/[;"\n]/.test(singleLine)) return `"${singleLine.replace(/"/g, '""')}"`;
-  return singleLine;
-}
-
 const fieldClass =
   'w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100';
 
@@ -240,57 +234,21 @@ export default function SoldDevicesPage() {
 
   const bonusSum = sumBonus(visibleRows);
 
-  function exportCsv() {
-    const header = ['Rb', 'SN', 'Naziv', 'Licenca', 'Meseci', 'Bonus (din)', 'Opis', 'Uneo', 'Datum'];
-    const blank = header.map(() => '');
-    const sorted = [...visibleRows].sort(
-      (a, b) => a.createdAt.localeCompare(b.createdAt) || a.serialNo.localeCompare(b.serialNo, 'sr'),
-    );
-    const data = sorted.map((row, index) => [
-      String(index + 1),
-      row.serialNo,
-      row.name ?? '',
-      row.licenceName,
-      String(row.months),
-      String(row.bonusAmount || 0),
-      row.description ?? '',
-      row.enteredBy,
-      fmtDate(row.createdAt).replaceAll('/', '.'),
-    ]);
-    const suma = [...blank];
-    suma[0] = 'Suma';
-    suma[5] = String(bonusSum);
-
-    const byLicence = new Map<string, { count: number; bonus: number }>();
-    for (const row of sorted) {
-      const key = row.licenceName.trim() || '—';
-      const bucket = byLicence.get(key) ?? { count: 0, bonus: 0 };
-      bucket.count += 1;
-      bucket.bonus += row.bonusAmount || 0;
-      byLicence.set(key, bucket);
-    }
-    const licenceRows = Array.from(byLicence.entries())
-      .sort((a, b) => a[0].localeCompare(b[0], 'sr'))
-      .map(([name, bucket]) => [name, String(bucket.count), String(bucket.bonus)]);
-
-    const lines: string[][] = [
-      ['Prodati uređaji', monthLabel(monthFilter)],
-      blank,
-      header,
-      ...data,
-      blank,
-      suma,
-      blank,
-      ['Po licenci', 'Broj unosa', 'Bonus (din)'],
-      ...licenceRows,
-    ];
-    const body = lines.map((cols) => cols.map((cell) => csvCell(cell)).join(';')).join('\r\n');
-    const blob = new Blob([`\uFEFF${body}\r\n`], { type: 'text/csv;charset=utf-8' });
+  async function exportExcel() {
+    const res = await api.get('/sold-devices/export', {
+      params: { month: monthFilter },
+      responseType: 'blob',
+    });
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `prodati-uredjaji-${monthFilter}.csv`;
+    a.download = `prodati-uredjaji-${monthFilter}.xlsx`;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
   }
 
@@ -303,7 +261,12 @@ export default function SoldDevicesPage() {
         </div>
         <button
           type="button"
-          onClick={exportCsv}
+          onClick={() => {
+            void exportExcel().catch(() => {
+              setNotice(null);
+              setFormError('Izvoz nije uspeo.');
+            });
+          }}
           disabled={visibleRows.length === 0}
           className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 disabled:opacity-50"
         >

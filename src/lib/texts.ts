@@ -599,7 +599,7 @@ export const DEFAULT_TEXTS: Record<string, string> = {
   'soldDevices.btn.saveEdit': 'Sačuvaj izmene',
   'soldDevices.btn.cancel': 'Otkaži',
   'soldDevices.btn.edit': 'Izmeni',
-  'soldDevices.btn.export': 'Izvezi CSV',
+  'soldDevices.btn.export': 'Izvezi Excel',
   'soldDevices.btn.saving': 'Čuvam…',
   'soldDevices.saved': 'Uređaj je sačuvan.',
   'soldDevices.updated': 'Izmena je sačuvana.',
