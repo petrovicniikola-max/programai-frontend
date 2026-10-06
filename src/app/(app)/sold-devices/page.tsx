@@ -89,8 +89,9 @@ function canonicalLicence(name: string): string | null {
 }
 
 function csvCell(value: string): string {
-  if (/[;"\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
+  const singleLine = value.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/[;"\n]/.test(singleLine)) return `"${singleLine.replace(/"/g, '""')}"`;
+  return singleLine;
 }
 
 const fieldClass =
@@ -240,27 +241,55 @@ export default function SoldDevicesPage() {
   const bonusSum = sumBonus(visibleRows);
 
   function exportCsv() {
-    const header = ['SN', 'Naziv', 'Licenca', 'Meseci', 'Bonus', 'Opis', 'Uneo', 'Datum'];
-    const lines = visibleRows.map((row) =>
-      [
-        row.serialNo,
-        row.name ?? '',
-        row.licenceName,
-        String(row.months),
-        String(row.bonusAmount || 0),
-        row.description ?? '',
-        row.enteredBy,
-        fmtDate(row.createdAt),
-      ]
-        .map(csvCell)
-        .join(';'),
+    const header = ['Rb', 'SN', 'Naziv', 'Licenca', 'Meseci', 'Bonus (din)', 'Opis', 'Uneo', 'Datum'];
+    const blank = header.map(() => '');
+    const sorted = [...visibleRows].sort(
+      (a, b) => a.createdAt.localeCompare(b.createdAt) || a.serialNo.localeCompare(b.serialNo, 'sr'),
     );
-    lines.push(['', '', '', 'Suma', String(bonusSum), '', '', ''].map(csvCell).join(';'));
-    const blob = new Blob([`\uFEFF${header.join(';')}\n${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' });
+    const data = sorted.map((row, index) => [
+      String(index + 1),
+      row.serialNo,
+      row.name ?? '',
+      row.licenceName,
+      String(row.months),
+      String(row.bonusAmount || 0),
+      row.description ?? '',
+      row.enteredBy,
+      fmtDate(row.createdAt).replaceAll('/', '.'),
+    ]);
+    const suma = [...blank];
+    suma[0] = 'Suma';
+    suma[5] = String(bonusSum);
+
+    const byLicence = new Map<string, { count: number; bonus: number }>();
+    for (const row of sorted) {
+      const key = row.licenceName.trim() || '—';
+      const bucket = byLicence.get(key) ?? { count: 0, bonus: 0 };
+      bucket.count += 1;
+      bucket.bonus += row.bonusAmount || 0;
+      byLicence.set(key, bucket);
+    }
+    const licenceRows = Array.from(byLicence.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], 'sr'))
+      .map(([name, bucket]) => [name, String(bucket.count), String(bucket.bonus)]);
+
+    const lines: string[][] = [
+      ['Prodati uređaji', monthLabel(monthFilter)],
+      blank,
+      header,
+      ...data,
+      blank,
+      suma,
+      blank,
+      ['Po licenci', 'Broj unosa', 'Bonus (din)'],
+      ...licenceRows,
+    ];
+    const body = lines.map((cols) => cols.map((cell) => csvCell(cell)).join(';')).join('\r\n');
+    const blob = new Blob([`\uFEFF${body}\r\n`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `prodati_uredjaji_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `prodati-uredjaji-${monthFilter}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
